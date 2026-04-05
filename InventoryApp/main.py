@@ -111,7 +111,12 @@ class AppGUI:
         top_frame.pack(fill="x", padx=20, pady=10)
 
         tk.Label(top_frame, text="Inventory Manager", font=("Arial", 16, "bold"), bg="white").pack(side="left")
-        tk.Button(top_frame, text="+ Add Product", command=self.add_product_window, bg="#2ecc71", fg="white").pack(side="right")
+        
+        button_frame = tk.Frame(top_frame, bg="white")
+        button_frame.pack(side="right")
+        
+        tk.Button(button_frame, text="+ Add Product", command=self.add_product_window, bg="#2ecc71", fg="white").pack(side="left", padx=5)
+        tk.Button(button_frame, text="- Remove Product", command=self.remove_product, bg="#e74c3c", fg="white").pack(side="left", padx=5)
 
         columns = ("ID", "Name", "Qty", "Price", "Image")
         self.tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
@@ -131,6 +136,20 @@ class AppGUI:
             self.tree.delete(item)
         for row in self.inventory:
             self.tree.insert("", "end", values=(row['ID'], row['Name'], row['Quantity'], row['Price'], row['Image']))
+
+    def remove_product(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a product to remove.")
+            return
+        
+        if messagebox.askyesno("Confirm", "Are you sure you want to remove the selected product?"):
+            item = self.tree.item(selected[0])
+            prod_id = str(item['values'][0])
+            self.inventory = [p for p in self.inventory if str(p['ID']) != prod_id]
+            DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "Image"])
+            self.refresh_inventory_table()
+            messagebox.showinfo("Success", "Product removed successfully.")
 
     def preview_product_image(self, event):
         selected = self.tree.selection()
@@ -215,6 +234,7 @@ class AppGUI:
         self.sale_qty_ent.grid(row=0, column=3)
 
         tk.Button(sale_form, text="Process Sale", command=self.process_sale, bg="#2ecc71", fg="white").grid(row=0, column=4, padx=10)
+        tk.Button(sale_form, text="Remove Sale", command=self.remove_sale, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=10)
 
         columns = ("ID", "Product", "Qty", "Total", "Date")
         self.sales_tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
@@ -224,6 +244,20 @@ class AppGUI:
 
         for s in self.sales:
             self.sales_tree.insert("", "end", values=(s["ID"], s['Product'], s['Qty'], s['Total'], s['Date']))
+
+    def remove_sale(self):
+        selected = self.sales_tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a sale record to remove.")
+            return
+        
+        if messagebox.askyesno("Confirm", "Are you sure you want to remove the selected sale record?"):
+            item = self.sales_tree.item(selected[0])
+            sale_id = str(item['values'][0])
+            self.sales = [s for s in self.sales if str(s['ID']) != sale_id]
+            DataManager.save_csv(SALES_FILE, self.sales, ["ID", "Product", "Qty", "Total", "Date"])
+            self.show_sales()
+            messagebox.showinfo("Success", "Sale record removed successfully.")
 
     def process_sale(self):
         p_name = self.sale_prod_var.get()
@@ -283,14 +317,29 @@ class AppGUI:
             except:
                 messagebox.showerror("Error", "Invalid amount")
         tk.Button(exp_form, text="Add Expense", command=add_exp, bg="#3498db", fg="white").grid(row=0, column=4, padx=10)
+        tk.Button(exp_form, text="Remove Expense", command=self.remove_expense, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=10)
 
         columns = ("ID", "Desc", "Amount", "Date")
-        etree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
+        self.expenses_tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
         for col in columns:
-            etree.heading(col, text=col)
-        etree.pack(fill="both", expand=True, padx=20, pady=10)
+            self.expenses_tree.heading(col, text=col)
+        self.expenses_tree.pack(fill="both", expand=True, padx=20, pady=10)
         for e in self.expenses:
-            etree.insert("", "end", values=(e['ID'], e['Desc'], e['Amount'], e['Date']))
+            self.expenses_tree.insert("", "end", values=(e['ID'], e['Desc'], e['Amount'], e['Date']))
+
+    def remove_expense(self):
+        selected = self.expenses_tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select an expense record to remove.")
+            return
+        
+        if messagebox.askyesno("Confirm", "Are you sure you want to remove the selected expense record?"):
+            item = self.expenses_tree.item(selected[0])
+            exp_id = str(item['values'][0])
+            self.expenses = [e for e in self.expenses if str(e['ID']) != exp_id]
+            DataManager.save_csv(EXP_FILE, self.expenses, ["ID", "Desc", "Amount", "Date"])
+            self.show_expenses()
+            messagebox.showinfo("Success", "Expense record removed successfully.")
 
 if __name__ == "__main__":
     root = tk.Tk()
