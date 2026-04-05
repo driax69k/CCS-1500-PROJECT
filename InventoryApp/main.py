@@ -19,6 +19,48 @@ INV_FILE = os.path.join(DATA_DIR, "inventory.csv")
 SALES_FILE = os.path.join(DATA_DIR, "sales.csv")
 EXP_FILE = os.path.join(DATA_DIR, "expenses.csv")
 
+# Theme Colors
+THEMES = {
+    "light": {
+        "bg": "#f0f0f0",
+        "fg": "#000000",
+        "sidebar_bg": "#2c3e50",
+        "sidebar_fg": "#ffffff",
+        "card_bg": "#ffffff",
+        "main_bg": "#ffffff",
+        "button_bg": "#34495e",
+        "button_fg": "#ffffff",
+        "hover_bg": "#46637f",
+        "entry_bg": "#ffffff",
+        "entry_fg": "#000000"
+    },
+    "dark": {
+        "bg": "#1e1e1e",
+        "fg": "#ffffff",
+        "sidebar_bg": "#121212",
+        "sidebar_fg": "#ffffff",
+        "card_bg": "#2d2d2d",
+        "main_bg": "#2d2d2d",
+        "button_bg": "#3d3d3d",
+        "button_fg": "#ffffff",
+        "hover_bg": "#555555",
+        "entry_bg": "#3d3d3d",
+        "entry_fg": "#ffffff"
+    }
+}
+
+def hex_to_rgb(hex_str):
+    return tuple(int(hex_str.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+
+def rgb_to_hex(rgb_tuple):
+    return '#{:02x}{:02x}{:02x}'.format(*rgb_tuple)
+
+def interpolate_color(start_hex, end_hex, progress):
+    start_rgb = hex_to_rgb(start_hex)
+    end_rgb = hex_to_rgb(end_hex)
+    res_rgb = tuple(int(s + (e - s) * progress) for s, e in zip(start_rgb, end_rgb))
+    return rgb_to_hex(res_rgb)
+
 # Ensure directories exist
 for folder in [DATA_DIR, IMAGE_DIR]:
     if not os.path.exists(folder):
@@ -44,7 +86,8 @@ class AppGUI:
         self.root = root
         self.root.title("Integrated Inventory & Accounting System")
         self.root.geometry("1100x650")
-        self.root.configure(bg="#f0f0f0")
+        self.current_theme = "light"
+        self.root.configure(bg=THEMES[self.current_theme]["bg"])
 
         # Data initialization
         self.inventory = DataManager.load_csv(INV_FILE)
@@ -54,11 +97,12 @@ class AppGUI:
         self.setup_ui()
 
     def setup_ui(self):
+        theme = THEMES[self.current_theme]
         # Navigation Sidebar
-        self.sidebar = tk.Frame(self.root, bg="#2c3e50", width=200)
+        self.sidebar = tk.Frame(self.root, bg=theme["sidebar_bg"], width=200)
         self.sidebar.pack(side="left", fill="y")
 
-        tk.Label(self.sidebar, text="MAIN MENU", fg="white", bg="#2c3e50", font=("Arial", 12, "bold"), pady=20).pack()
+        tk.Label(self.sidebar, text="MAIN MENU", fg=theme["sidebar_fg"], bg=theme["sidebar_bg"], font=("Arial", 12, "bold"), pady=20).pack()
 
         buttons = [
             ("Dashboard", self.show_dashboard),
@@ -67,24 +111,91 @@ class AppGUI:
             ("Expenses", self.show_expenses),
         ]
 
+        self.nav_buttons = []
         for text, command in buttons:
-            tk.Button(self.sidebar, text=text, command=command, bg="#34495e", fg="white", relief="flat", padx=20, pady=10, width=15).pack(pady=5)
+            btn = tk.Button(self.sidebar, text=text, command=command, bg=theme["button_bg"], fg=theme["button_fg"], relief="flat", padx=20, pady=10, width=15)
+            btn.pack(pady=5)
+            self.nav_buttons.append(btn)
+            self.bind_hover(btn, theme["button_bg"], theme["hover_bg"])
         
+        # Theme Toggle Button
+        self.theme_btn = tk.Button(self.sidebar, text="🌙 Dark Mode" if self.current_theme == "light" else "☀️ Light Mode", 
+                                  command=self.toggle_theme, bg="#f1c40f", fg="black", relief="flat", padx=20, pady=10, width=15)
+        self.theme_btn.pack(side="bottom", pady=20)
+        self.bind_hover(self.theme_btn, "#f1c40f", "#f39c12")
+
         # Main Content Area
-        self.main_frame = tk.Frame(self.root, bg="white")
+        self.main_frame = tk.Frame(self.root, bg=theme["main_bg"])
         self.main_frame.pack(side="right", fill="both", expand=True)
 
         self.show_dashboard()
+
+    def bind_hover(self, widget, normal_color, hover_color):
+        widget.bind("<Enter>", lambda e: self.animate_color(widget, normal_color, hover_color))
+        widget.bind("<Leave>", lambda e: self.animate_color(widget, hover_color, normal_color))
+
+    def animate_color(self, widget, start_hex, end_hex, steps=10, current_step=0):
+        if current_step <= steps:
+            progress = current_step / steps
+            new_color = interpolate_color(start_hex, end_hex, progress)
+            try:
+                widget.configure(bg=new_color)
+                self.root.after(10, lambda: self.animate_color(widget, start_hex, end_hex, steps, current_step + 1))
+            except: pass
+
+    def fade_in_frame(self, frame, delay=0):
+        frame.place(relx=0.5, rely=0.55, anchor="center") # Start slightly lower
+        def slide():
+            for i in range(10):
+                self.root.after(delay + i*15, lambda i=i: frame.place(relx=0.5, rely=0.55 - (i*0.005), anchor="center"))
+        slide()
+
+    def toggle_theme(self):
+        self.current_theme = "dark" if self.current_theme == "light" else "light"
+        theme = THEMES[self.current_theme]
+        
+        self.root.configure(bg=theme["bg"])
+        self.sidebar.configure(bg=theme["sidebar_bg"])
+        self.main_frame.configure(bg=theme["main_bg"])
+        
+        # Update sidebar labels
+        for widget in self.sidebar.winfo_children():
+            if isinstance(widget, tk.Label):
+                widget.configure(bg=theme["sidebar_bg"], fg=theme["sidebar_fg"])
+        
+        # Update nav buttons
+        for btn in self.nav_buttons:
+            btn.configure(bg=theme["button_bg"], fg=theme["button_fg"])
+            self.bind_hover(btn, theme["button_bg"], theme["hover_bg"])
+            
+        # Update theme button
+        self.theme_btn.configure(text="🌙 Dark Mode" if self.current_theme == "light" else "☀️ Light Mode")
+        self.bind_hover(self.theme_btn, "#f1c40f", "#f39c12")
+        
+        # Refresh current view to apply theme
+        current_view = getattr(self, "current_view", "dashboard")
+        if current_view == "dashboard": self.show_dashboard()
+        elif current_view == "inventory": self.show_inventory()
+        elif current_view == "sales": self.show_sales()
+        elif current_view == "expenses": self.show_expenses()
 
     def clear_frame(self):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
 
     def show_dashboard(self):
+        self.current_view = "dashboard"
         self.clear_frame()
-        tk.Label(self.main_frame, text="Business Dashboard", font=("Arial", 20, "bold"), bg="white").pack(pady=20)
+        theme = THEMES[self.current_theme]
+        self.main_frame.configure(bg=theme["main_bg"])
+        
+        # Container for animation
+        container = tk.Frame(self.main_frame, bg=theme["main_bg"])
+        container.pack(fill="both", expand=True)
 
-        stats_frame = tk.Frame(self.main_frame, bg="white")
+        tk.Label(container, text="Business Dashboard", font=("Arial", 20, "bold"), bg=theme["main_bg"], fg=theme["fg"]).pack(pady=20)
+
+        stats_frame = tk.Frame(container, bg=theme["main_bg"])
         stats_frame.pack(pady=10)
 
         total_stock_val = sum(float(i['Price']) * int(i['Quantity']) for i in self.inventory)
@@ -104,22 +215,43 @@ class AppGUI:
             card.grid(row=0, column=i, padx=10)
             tk.Label(card, text=title, bg=color, fg="white", font=("Arial", 10)).pack()
             tk.Label(card, text=value, bg=color, fg="white", font=("Arial", 14, "bold")).pack()
+            # Staggered entry
+            card.grid_remove()
+            self.root.after(i*100, lambda c=card: c.grid())
 
     def show_inventory(self):
+        self.current_view = "inventory"
         self.clear_frame()
-        top_frame = tk.Frame(self.main_frame, bg="white")
+        theme = THEMES[self.current_theme]
+        self.main_frame.configure(bg=theme["main_bg"])
+
+        container = tk.Frame(self.main_frame, bg=theme["main_bg"])
+        container.pack(fill="both", expand=True)
+
+        top_frame = tk.Frame(container, bg=theme["main_bg"])
         top_frame.pack(fill="x", padx=20, pady=10)
 
-        tk.Label(top_frame, text="Inventory Manager", font=("Arial", 16, "bold"), bg="white").pack(side="left")
+        tk.Label(top_frame, text="Inventory Manager", font=("Arial", 16, "bold"), bg=theme["main_bg"], fg=theme["fg"]).pack(side="left")
         
-        button_frame = tk.Frame(top_frame, bg="white")
+        button_frame = tk.Frame(top_frame, bg=theme["main_bg"])
         button_frame.pack(side="right")
         
         tk.Button(button_frame, text="+ Add Product", command=self.add_product_window, bg="#2ecc71", fg="white").pack(side="left", padx=5)
         tk.Button(button_frame, text="- Remove Product", command=self.remove_product, bg="#e74c3c", fg="white").pack(side="left", padx=5)
 
         columns = ("ID", "Name", "Qty", "Price", "Image")
-        self.tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
+        
+        # Treeview styling for dark mode
+        style = ttk.Style()
+        if self.current_theme == "dark":
+            style.theme_use("clam")
+            style.configure("Treeview", background=theme["card_bg"], foreground=theme["fg"], fieldbackground=theme["card_bg"], bordercolor="#444", lightcolor="#444", darkcolor="#444")
+            style.configure("Treeview.Heading", background="#333", foreground="white", relief="flat")
+            style.map("Treeview", background=[('selected', '#4a90e2')])
+        else:
+            style.theme_use("default")
+
+        self.tree = ttk.Treeview(container, columns=columns, show="headings")
         for col in columns:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=100)
@@ -127,7 +259,7 @@ class AppGUI:
         self.tree.pack(fill="both", expand=True, padx=20, pady=10)
         self.tree.bind("<<TreeviewSelect>>", self.preview_product_image)
 
-        self.img_preview_label = tk.Label(self.main_frame, text="Select a product to see image", bg="white")
+        self.img_preview_label = tk.Label(container, text="Select a product to see image", bg=theme["main_bg"], fg=theme["fg"])
         self.img_preview_label.pack(pady=10)
         self.refresh_inventory_table()
 
@@ -158,6 +290,7 @@ class AppGUI:
         img_name = item['values'][4]
         img_path = os.path.join(IMAGE_DIR, img_name)
 
+        theme = THEMES[self.current_theme]
         if PILLOW_INSTALLED and img_name and os.path.exists(img_path):
             try:
                 img = Image.open(img_path)
@@ -166,20 +299,22 @@ class AppGUI:
                 self.img_preview_label.config(image=photo, text="")
                 self.img_preview_label.image = photo
             except Exception as e:
-                self.img_preview_label.config(image="", text=f"Error: {e}")
+                self.img_preview_label.config(image="", text=f"Error: {e}", fg=theme["fg"])
         else:
-            self.img_preview_label.config(image="", text="No Image Available")
+            self.img_preview_label.config(image="", text="No Image Available", fg=theme["fg"])
 
     def add_product_window(self):
         win = tk.Toplevel(self.root)
         win.title("Add New Product")
         win.geometry("300x450")
+        theme = THEMES[self.current_theme]
+        win.configure(bg=theme["bg"])
 
         fields = ["Name", "Quantity", "Price"]
         entries = {}
         for f in fields:
-            tk.Label(win, text=f).pack()
-            e = tk.Entry(win)
+            tk.Label(win, text=f, bg=theme["bg"], fg=theme["fg"]).pack()
+            e = tk.Entry(win, bg=theme["entry_bg"], fg=theme["entry_fg"], insertbackground=theme["fg"])
             e.pack()
             entries[f] = e
 
@@ -189,8 +324,8 @@ class AppGUI:
             if self.selected_img_path:
                 lbl_img.config(text=os.path.basename(self.selected_img_path))
 
-        tk.Button(win, text="Select Image", command=select_img).pack(pady=10)
-        lbl_img = tk.Label(win, text="No image selected")
+        tk.Button(win, text="Select Image", command=select_img, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=10)
+        lbl_img = tk.Label(win, text="No image selected", bg=theme["bg"], fg=theme["fg"])
         lbl_img.pack()
 
         def save():
@@ -217,27 +352,43 @@ class AppGUI:
         tk.Button(win, text="Save Product", bg="#2ecc71", fg="white", command=save).pack(pady=20)
 
     def show_sales(self):
+        self.current_view = "sales"
         self.clear_frame()
-        tk.Label(self.main_frame, text="Sales Records", font=("Arial", 16, "bold"), bg="white").pack(pady=10)
+        theme = THEMES[self.current_theme]
+        self.main_frame.configure(bg=theme["main_bg"])
 
-        sale_form = tk.Frame(self.main_frame, bg="#ecf0f1", pady=10)
+        container = tk.Frame(self.main_frame, bg=theme["main_bg"])
+        container.pack(fill="both", expand=True)
+
+        tk.Label(container, text="Sales Records", font=("Arial", 16, "bold"), bg=theme["main_bg"], fg=theme["fg"]).pack(pady=10)
+
+        sale_form = tk.Frame(container, bg=theme["card_bg"], pady=10)
         sale_form.pack(fill="x", padx=20)
 
-        tk.Label(sale_form, text="Select Product:").grid(row=0, column=0)
+        tk.Label(sale_form, text="Select Product:", bg=theme["card_bg"], fg=theme["fg"]).grid(row=0, column=0)
         prod_names = [p['Name'] for p in self.inventory]
         self.sale_prod_var = tk.StringVar()
         prod_dropdown = ttk.Combobox(sale_form, textvariable=self.sale_prod_var, values=prod_names)
         prod_dropdown.grid(row=0, column=1)
 
-        tk.Label(sale_form, text="Quantity:").grid(row=0, column=2)
-        self.sale_qty_ent = tk.Entry(sale_form)
+        tk.Label(sale_form, text="Quantity:", bg=theme["card_bg"], fg=theme["fg"]).grid(row=0, column=2)
+        self.sale_qty_ent = tk.Entry(sale_form, bg=theme["entry_bg"], fg=theme["entry_fg"], insertbackground=theme["fg"])
         self.sale_qty_ent.grid(row=0, column=3)
 
         tk.Button(sale_form, text="Process Sale", command=self.process_sale, bg="#2ecc71", fg="white").grid(row=0, column=4, padx=10)
         tk.Button(sale_form, text="Remove Sale", command=self.remove_sale, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=10)
 
         columns = ("ID", "Product", "Qty", "Total", "Date")
-        self.sales_tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
+        
+        style = ttk.Style()
+        if self.current_theme == "dark":
+            style.theme_use("clam")
+            style.configure("Treeview", background=theme["card_bg"], foreground=theme["fg"], fieldbackground=theme["card_bg"], bordercolor="#444", lightcolor="#444", darkcolor="#444")
+            style.configure("Treeview.Heading", background="#333", foreground="white", relief="flat")
+        else:
+            style.theme_use("default")
+
+        self.sales_tree = ttk.Treeview(container, columns=columns, show="headings")
         for col in columns:
             self.sales_tree.heading(col, text=col)
         self.sales_tree.pack(fill="both", expand=True, padx=20, pady=10)
@@ -289,18 +440,25 @@ class AppGUI:
             messagebox.showerror("Error", f"Invalid input: {e}")
 
     def show_expenses(self):
+        self.current_view = "expenses"
         self.clear_frame()
-        tk.Label(self.main_frame, text="Expense Tracker", font=("Arial", 16, "bold"), bg="white").pack(pady=10)
+        theme = THEMES[self.current_theme]
+        self.main_frame.configure(bg=theme["main_bg"])
 
-        exp_form = tk.Frame(self.main_frame, bg="#ecf0f1", pady=10)
+        container = tk.Frame(self.main_frame, bg=theme["main_bg"])
+        container.pack(fill="both", expand=True)
+
+        tk.Label(container, text="Expense Tracker", font=("Arial", 16, "bold"), bg=theme["main_bg"], fg=theme["fg"]).pack(pady=10)
+
+        exp_form = tk.Frame(container, bg=theme["card_bg"], pady=10)
         exp_form.pack(fill="x", padx=20)
 
-        tk.Label(exp_form, text="Description:").grid(row=0, column=0)
-        desc_ent = tk.Entry(exp_form)
+        tk.Label(exp_form, text="Description:", bg=theme["card_bg"], fg=theme["fg"]).grid(row=0, column=0)
+        desc_ent = tk.Entry(exp_form, bg=theme["entry_bg"], fg=theme["entry_fg"], insertbackground=theme["fg"])
         desc_ent.grid(row=0, column=1)
         
-        tk.Label(exp_form, text="Amount:").grid(row=0, column=2)
-        amt_ent = tk.Entry(exp_form)
+        tk.Label(exp_form, text="Amount:", bg=theme["card_bg"], fg=theme["fg"]).grid(row=0, column=2)
+        amt_ent = tk.Entry(exp_form, bg=theme["entry_bg"], fg=theme["entry_fg"], insertbackground=theme["fg"])
         amt_ent.grid(row=0, column=3)
 
         def add_exp():
@@ -320,7 +478,16 @@ class AppGUI:
         tk.Button(exp_form, text="Remove Expense", command=self.remove_expense, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=10)
 
         columns = ("ID", "Desc", "Amount", "Date")
-        self.expenses_tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
+        
+        style = ttk.Style()
+        if self.current_theme == "dark":
+            style.theme_use("clam")
+            style.configure("Treeview", background=theme["card_bg"], foreground=theme["fg"], fieldbackground=theme["card_bg"], bordercolor="#444", lightcolor="#444", darkcolor="#444")
+            style.configure("Treeview.Heading", background="#333", foreground="white", relief="flat")
+        else:
+            style.theme_use("default")
+
+        self.expenses_tree = ttk.Treeview(container, columns=columns, show="headings")
         for col in columns:
             self.expenses_tree.heading(col, text=col)
         self.expenses_tree.pack(fill="both", expand=True, padx=20, pady=10)
