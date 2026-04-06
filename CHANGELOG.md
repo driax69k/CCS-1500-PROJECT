@@ -2,6 +2,11 @@
 
 This document tracks the recent enhancements and functionality added to the **Integrated Inventory & Accounting System**.
 
+## 🛑 Recent Removals (April 6, 2026)
+
+### 1. Theme Customization (Light & Dark Mode)
+Removed the theme engine and the toggle button from the sidebar. The application now uses a fixed light theme for consistency and simplified maintenance.
+
 ## 🆕 Recent Additions
 
 ### 1. UI Animations & Smooth Transitions
@@ -11,14 +16,7 @@ Enhanced the user interface with reactive animations to make the application fee
 - **Active Module Tracking**: Improved view state management ensures animations are context-aware.
 - **Color Interpolation Engine**: Implemented a custom mathematical engine to handle RGB color transitions within the Tkinter event loop.
 
-### 2. Theme Customization (Light & Dark Mode)
-Added a new theme engine to provide a better user experience in different lighting conditions:
-- **Toggle Button**: A dedicated button in the sidebar to switch between Light and Dark modes.
-- **Dynamic Styling**: Automatically updates backgrounds, text colors, buttons, and entry fields across all modules.
-- **Treeview Enhancements**: Implemented specialized styling for tables (Treeview) to ensure readability in Dark Mode using the `clam` theme.
-- **Persistent View State**: The application now tracks the current view to ensure seamless theme transitions.
-
-### 3. Data Removal Functionality
+### 2. Data Removal Functionality
 The most significant update in this version is the ability to manage and delete existing records across all modules:
 - **Inventory**: Added a **"- Remove Product"** feature to delete items that are no longer in stock or discontinued.
 - **Sales**: Added a **"Remove Sale"** button to allow for the correction of accidental entries or cancelled transactions.

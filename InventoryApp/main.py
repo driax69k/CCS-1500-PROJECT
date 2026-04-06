@@ -20,33 +20,18 @@ SALES_FILE = os.path.join(DATA_DIR, "sales.csv")
 EXP_FILE = os.path.join(DATA_DIR, "expenses.csv")
 
 # Theme Colors
-THEMES = {
-    "light": {
-        "bg": "#f0f0f0",
-        "fg": "#000000",
-        "sidebar_bg": "#2c3e50",
-        "sidebar_fg": "#ffffff",
-        "card_bg": "#ffffff",
-        "main_bg": "#ffffff",
-        "button_bg": "#34495e",
-        "button_fg": "#ffffff",
-        "hover_bg": "#46637f",
-        "entry_bg": "#ffffff",
-        "entry_fg": "#000000"
-    },
-    "dark": {
-        "bg": "#1e1e1e",
-        "fg": "#ffffff",
-        "sidebar_bg": "#121212",
-        "sidebar_fg": "#ffffff",
-        "card_bg": "#2d2d2d",
-        "main_bg": "#2d2d2d",
-        "button_bg": "#3d3d3d",
-        "button_fg": "#ffffff",
-        "hover_bg": "#555555",
-        "entry_bg": "#3d3d3d",
-        "entry_fg": "#ffffff"
-    }
+THEME = {
+    "bg": "#f0f0f0",
+    "fg": "#000000",
+    "sidebar_bg": "#2c3e50",
+    "sidebar_fg": "#ffffff",
+    "card_bg": "#ffffff",
+    "main_bg": "#ffffff",
+    "button_bg": "#34495e",
+    "button_fg": "#ffffff",
+    "hover_bg": "#46637f",
+    "entry_bg": "#ffffff",
+    "entry_fg": "#000000"
 }
 
 def hex_to_rgb(hex_str):
@@ -86,8 +71,7 @@ class AppGUI:
         self.root = root
         self.root.title("Integrated Inventory & Accounting System")
         self.root.geometry("1100x650")
-        self.current_theme = "light"
-        self.root.configure(bg=THEMES[self.current_theme]["bg"])
+        self.root.configure(bg=THEME["bg"])
 
         # Data initialization
         self.inventory = DataManager.load_csv(INV_FILE)
@@ -97,7 +81,7 @@ class AppGUI:
         self.setup_ui()
 
     def setup_ui(self):
-        theme = THEMES[self.current_theme]
+        theme = THEME
         # Navigation Sidebar
         self.sidebar = tk.Frame(self.root, bg=theme["sidebar_bg"], width=200)
         self.sidebar.pack(side="left", fill="y")
@@ -118,12 +102,6 @@ class AppGUI:
             self.nav_buttons.append(btn)
             self.bind_hover(btn, theme["button_bg"], theme["hover_bg"])
         
-        # Theme Toggle Button
-        self.theme_btn = tk.Button(self.sidebar, text="🌙 Dark Mode" if self.current_theme == "light" else "☀️ Light Mode", 
-                                  command=self.toggle_theme, bg="#f1c40f", fg="black", relief="flat", padx=20, pady=10, width=15)
-        self.theme_btn.pack(side="bottom", pady=20)
-        self.bind_hover(self.theme_btn, "#f1c40f", "#f39c12")
-
         # Main Content Area
         self.main_frame = tk.Frame(self.root, bg=theme["main_bg"])
         self.main_frame.pack(side="right", fill="both", expand=True)
@@ -150,35 +128,6 @@ class AppGUI:
                 self.root.after(delay + i*15, lambda i=i: frame.place(relx=0.5, rely=0.55 - (i*0.005), anchor="center"))
         slide()
 
-    def toggle_theme(self):
-        self.current_theme = "dark" if self.current_theme == "light" else "light"
-        theme = THEMES[self.current_theme]
-        
-        self.root.configure(bg=theme["bg"])
-        self.sidebar.configure(bg=theme["sidebar_bg"])
-        self.main_frame.configure(bg=theme["main_bg"])
-        
-        # Update sidebar labels
-        for widget in self.sidebar.winfo_children():
-            if isinstance(widget, tk.Label):
-                widget.configure(bg=theme["sidebar_bg"], fg=theme["sidebar_fg"])
-        
-        # Update nav buttons
-        for btn in self.nav_buttons:
-            btn.configure(bg=theme["button_bg"], fg=theme["button_fg"])
-            self.bind_hover(btn, theme["button_bg"], theme["hover_bg"])
-            
-        # Update theme button
-        self.theme_btn.configure(text="🌙 Dark Mode" if self.current_theme == "light" else "☀️ Light Mode")
-        self.bind_hover(self.theme_btn, "#f1c40f", "#f39c12")
-        
-        # Refresh current view to apply theme
-        current_view = getattr(self, "current_view", "dashboard")
-        if current_view == "dashboard": self.show_dashboard()
-        elif current_view == "inventory": self.show_inventory()
-        elif current_view == "sales": self.show_sales()
-        elif current_view == "expenses": self.show_expenses()
-
     def clear_frame(self):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
@@ -186,7 +135,7 @@ class AppGUI:
     def show_dashboard(self):
         self.current_view = "dashboard"
         self.clear_frame()
-        theme = THEMES[self.current_theme]
+        theme = THEME
         self.main_frame.configure(bg=theme["main_bg"])
         
         # Container for animation
@@ -222,7 +171,7 @@ class AppGUI:
     def show_inventory(self):
         self.current_view = "inventory"
         self.clear_frame()
-        theme = THEMES[self.current_theme]
+        theme = THEME
         self.main_frame.configure(bg=theme["main_bg"])
 
         container = tk.Frame(self.main_frame, bg=theme["main_bg"])
@@ -241,15 +190,9 @@ class AppGUI:
 
         columns = ("ID", "Name", "Qty", "Price", "Image")
         
-        # Treeview styling for dark mode
+        # Treeview styling
         style = ttk.Style()
-        if self.current_theme == "dark":
-            style.theme_use("clam")
-            style.configure("Treeview", background=theme["card_bg"], foreground=theme["fg"], fieldbackground=theme["card_bg"], bordercolor="#444", lightcolor="#444", darkcolor="#444")
-            style.configure("Treeview.Heading", background="#333", foreground="white", relief="flat")
-            style.map("Treeview", background=[('selected', '#4a90e2')])
-        else:
-            style.theme_use("default")
+        style.theme_use("default")
 
         self.tree = ttk.Treeview(container, columns=columns, show="headings")
         for col in columns:
@@ -290,7 +233,7 @@ class AppGUI:
         img_name = item['values'][4]
         img_path = os.path.join(IMAGE_DIR, img_name)
 
-        theme = THEMES[self.current_theme]
+        theme = THEME
         if PILLOW_INSTALLED and img_name and os.path.exists(img_path):
             try:
                 img = Image.open(img_path)
@@ -307,7 +250,7 @@ class AppGUI:
         win = tk.Toplevel(self.root)
         win.title("Add New Product")
         win.geometry("300x450")
-        theme = THEMES[self.current_theme]
+        theme = THEME
         win.configure(bg=theme["bg"])
 
         fields = ["Name", "Quantity", "Price"]
@@ -354,7 +297,7 @@ class AppGUI:
     def show_sales(self):
         self.current_view = "sales"
         self.clear_frame()
-        theme = THEMES[self.current_theme]
+        theme = THEME
         self.main_frame.configure(bg=theme["main_bg"])
 
         container = tk.Frame(self.main_frame, bg=theme["main_bg"])
@@ -379,14 +322,10 @@ class AppGUI:
         tk.Button(sale_form, text="Remove Sale", command=self.remove_sale, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=10)
 
         columns = ("ID", "Product", "Qty", "Total", "Date")
-        
+        # Treeview styling
         style = ttk.Style()
-        if self.current_theme == "dark":
-            style.theme_use("clam")
-            style.configure("Treeview", background=theme["card_bg"], foreground=theme["fg"], fieldbackground=theme["card_bg"], bordercolor="#444", lightcolor="#444", darkcolor="#444")
-            style.configure("Treeview.Heading", background="#333", foreground="white", relief="flat")
-        else:
-            style.theme_use("default")
+        style.theme_use("default")
+
 
         self.sales_tree = ttk.Treeview(container, columns=columns, show="headings")
         for col in columns:
@@ -442,7 +381,7 @@ class AppGUI:
     def show_expenses(self):
         self.current_view = "expenses"
         self.clear_frame()
-        theme = THEMES[self.current_theme]
+        theme = THEME
         self.main_frame.configure(bg=theme["main_bg"])
 
         container = tk.Frame(self.main_frame, bg=theme["main_bg"])
@@ -478,14 +417,10 @@ class AppGUI:
         tk.Button(exp_form, text="Remove Expense", command=self.remove_expense, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=10)
 
         columns = ("ID", "Desc", "Amount", "Date")
-        
+        # Treeview styling
         style = ttk.Style()
-        if self.current_theme == "dark":
-            style.theme_use("clam")
-            style.configure("Treeview", background=theme["card_bg"], foreground=theme["fg"], fieldbackground=theme["card_bg"], bordercolor="#444", lightcolor="#444", darkcolor="#444")
-            style.configure("Treeview.Heading", background="#333", foreground="white", relief="flat")
-        else:
-            style.theme_use("default")
+        style.theme_use("default")
+
 
         self.expenses_tree = ttk.Treeview(container, columns=columns, show="headings")
         for col in columns:
