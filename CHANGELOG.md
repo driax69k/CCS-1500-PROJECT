@@ -1,46 +1,43 @@
-# Project Updates & New Features
+# Changelog
 
-This document tracks the recent enhancements and functionality added to the **Integrated Inventory & Accounting System**.
+## [1.2.0] - 2026-04-07
+### Added
+- **Batch Management**: Implemented expiration date tracking. Products with the same name but different expiration dates are now handled as separate batches.
+- **FIFO Sales Logic**: Sales now automatically deduct stock from the oldest batches first based on their expiration date.
+- **Restock Feature**: Added a new button in the inventory manager to quickly add stock to existing items.
+- **Inventory Remarks**: Added a "Remarks" column to the inventory for additional product notes.
+- **Daily Sales Tracking**: Added a dedicated summary section in the Sales view to track daily totals.
+- **Record Sale Dialog**: Replaced the POS form with a dedicated "Record Sale" window for a cleaner interface.
 
-## 🛑 Recent Removals (April 6, 2026)
+### Removed
+- **Expenses Tracker**: Completely removed the expenses section and related code to focus on inventory and sales.
+- **expenses.csv**: Deleted the unused data file.
 
-### 1. Theme Customization (Light & Dark Mode)
-Removed the theme engine and the toggle button from the sidebar. The application now uses a fixed light theme for consistency and simplified maintenance.
-
-## 🆕 Recent Additions
-
-### 1. UI Animations & Smooth Transitions
-Enhanced the user interface with reactive animations to make the application feel more modern:
-- **Hover Transitions**: Sidebar and toggle buttons now feature smooth background color transitions (150ms fade) when hovered.
-- **Staggered Dashboard Entry**: Statistic cards on the dashboard now appear with a staggered "pop-in" effect for a more dynamic feel.
-- **Active Module Tracking**: Improved view state management ensures animations are context-aware.
-- **Color Interpolation Engine**: Implemented a custom mathematical engine to handle RGB color transitions within the Tkinter event loop.
-
-### 2. Data Removal Functionality
-The most significant update in this version is the ability to manage and delete existing records across all modules:
-- **Inventory**: Added a **"- Remove Product"** feature to delete items that are no longer in stock or discontinued.
-- **Sales**: Added a **"Remove Sale"** button to allow for the correction of accidental entries or cancelled transactions.
-- **Expenses**: Added a **"Remove Expense"** feature to manage and delete business costs.
-
-### 2. User Interface Enhancements
-- **Consolidated Controls**: In the Inventory section, buttons are now organized within a dedicated `button_frame` for a cleaner, more professional look.
-- **Improved Interaction**: Added confirmation dialogs (`Yes/No` prompts) before any deletion to prevent accidental data loss.
-- **Instant Visual Updates**: The tables (Treeview) now refresh immediately after any addition or removal of data.
-
-### 3. Data Integrity & Persistence
-- **ID-Based Deletion**: Implemented precise record targeting using unique IDs for products, sales, and expenses.
-- **CSV Synchronization**: The `DataManager` now ensures that any changes made in the UI are instantly mirrored in the physical `.csv` files in the `data/` directory.
-
-### 4. Documentation
-- **README.md**: Created a comprehensive guide detailing features, prerequisites, project structure, and usage instructions.
-
-## 🛠️ Technical Changes
-- **Refactored `AppGUI`**: Updated `show_inventory`, `show_sales`, and `show_expenses` to include new button layouts and logic.
-- **New Methods**:
-  - `remove_product()`
-  - `remove_sale()`
-  - `remove_expense()`
-- **Bug Fix**: Updated the expenses table to use `self.expenses_tree` globally within the class to enable row selection for the removal feature.
+### Fixed
+- **Price Management**: Adding an existing product name with the same expiry now updates the quantity and price of that batch instead of creating a duplicate entry.
 
 ---
-*Last Updated: April 5, 2026*
+
+## [1.1.0] - 2026-04-06
+### Added
+- **UI Animations & Smooth Transitions**: Hover transitions and staggered dashboard entry effects.
+- **Data Removal Functionality**: Added feature to delete products, sales, and expenses.
+- **ID-Based Deletion**: Precise record targeting for data integrity.
+- **CSV Synchronization**: Real-time mirroring of UI changes to CSV files.
+- **Documentation**: Comprehensive README.md created.
+
+### Removed
+- **Theme Customization**: Removed the theme toggle engine in favor of a fixed light theme for maintenance.
+
+### Fixed
+- **Bug Fix**: Fixed `expenses_tree` global access issue.
+
+---
+
+## [1.0.0] - Prior Release
+### Added
+- **Initial Release**: Basic inventory, sales, and expenses tracking system.
+- **Dashboard Statistics**: Visual cards for total products, stock value, total sales, and net profit.
+- **Inventory Management**: CSV-based storage for product details and images.
+- **Sales System**: Basic POS-style form to record sales.
+- **Expenses Tracker**: Log business costs and calculate net profit.

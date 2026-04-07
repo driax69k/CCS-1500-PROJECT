@@ -17,7 +17,6 @@ DATA_DIR = "data"
 IMAGE_DIR = "images"
 INV_FILE = os.path.join(DATA_DIR, "inventory.csv")
 SALES_FILE = os.path.join(DATA_DIR, "sales.csv")
-EXP_FILE = os.path.join(DATA_DIR, "expenses.csv")
 
 # Theme Colors
 THEME = {
@@ -69,14 +68,13 @@ class DataManager:
 class AppGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Integrated Inventory & Accounting System")
+        self.root.title("Integrated Inventory & Sales Tracking System")
         self.root.geometry("1100x650")
         self.root.configure(bg=THEME["bg"])
 
         # Data initialization
         self.inventory = DataManager.load_csv(INV_FILE)
         self.sales = DataManager.load_csv(SALES_FILE)
-        self.expenses = DataManager.load_csv(EXP_FILE)
 
         self.setup_ui()
 
@@ -92,7 +90,6 @@ class AppGUI:
             ("Dashboard", self.show_dashboard),
             ("Inventory", self.show_inventory),
             ("Sales", self.show_sales),
-            ("Expenses", self.show_expenses),
         ]
 
         self.nav_buttons = []
@@ -147,16 +144,13 @@ class AppGUI:
         stats_frame = tk.Frame(container, bg=theme["main_bg"])
         stats_frame.pack(pady=10)
 
-        total_stock_val = sum(float(i['Price']) * int(i['Quantity']) for i in self.inventory)
-        total_sales = sum(float(s['Total']) for s in self.sales)
-        total_exp = sum(float(e['Amount']) for e in self.expenses)
-        net_profit = total_sales - total_exp
+        total_stock_val = sum(float(i.get('Price', 0)) * int(i.get('Quantity', 0)) for i in self.inventory)
+        total_sales = sum(float(s.get('Total', 0)) for s in self.sales)
 
         cards = [
             ("Total Products", len(self.inventory), "#3498db"),
             ("Stock Value", f"₱{total_stock_val:.2f}", "#f1c40f"),
             ("Total Sales", f"₱{total_sales:.2f}", "#2ecc71"),
-            ("Net Profit", f"₱{net_profit:.2f}", "#e67e22"),
         ]
 
         for i, (title, value, color) in enumerate(cards):
@@ -186,9 +180,10 @@ class AppGUI:
         button_frame.pack(side="right")
         
         tk.Button(button_frame, text="+ Add Product", command=self.add_product_window, bg="#2ecc71", fg="white").pack(side="left", padx=5)
+        tk.Button(button_frame, text="↻ Restock", command=self.restock_product_window, bg="#3498db", fg="white").pack(side="left", padx=5)
         tk.Button(button_frame, text="- Remove Product", command=self.remove_product, bg="#e74c3c", fg="white").pack(side="left", padx=5)
 
-        columns = ("ID", "Name", "Qty", "Price", "Image")
+        columns = ("ID", "Name", "Qty", "Price", "Expiry", "Remarks", "Image")
         
         # Treeview styling
         style = ttk.Style()
@@ -197,7 +192,8 @@ class AppGUI:
         self.tree = ttk.Treeview(container, columns=columns, show="headings")
         for col in columns:
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=100)
+            width = 150 if col in ["Name", "Remarks"] else 80
+            self.tree.column(col, width=width)
 
         self.tree.pack(fill="both", expand=True, padx=20, pady=10)
         self.tree.bind("<<TreeviewSelect>>", self.preview_product_image)
@@ -210,7 +206,15 @@ class AppGUI:
         for item in self.tree.get_children():
             self.tree.delete(item)
         for row in self.inventory:
-            self.tree.insert("", "end", values=(row['ID'], row['Name'], row['Quantity'], row['Price'], row['Image']))
+            self.tree.insert("", "end", values=(
+                row.get('ID', ''), 
+                row.get('Name', ''), 
+                row.get('Quantity', ''), 
+                row.get('Price', ''), 
+                row.get('ExpiryDate', 'N/A'), 
+                row.get('Remarks', ''), 
+                row.get('Image', 'default.png')
+            ))
 
     def remove_product(self):
         selected = self.tree.selection()
@@ -222,7 +226,7 @@ class AppGUI:
             item = self.tree.item(selected[0])
             prod_id = str(item['values'][0])
             self.inventory = [p for p in self.inventory if str(p['ID']) != prod_id]
-            DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "Image"])
+            DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "ExpiryDate", "Remarks", "Image"])
             self.refresh_inventory_table()
             messagebox.showinfo("Success", "Product removed successfully.")
 
@@ -230,7 +234,7 @@ class AppGUI:
         selected = self.tree.selection()
         if not selected: return
         item = self.tree.item(selected[0])
-        img_name = item['values'][4]
+        img_name = item['values'][6] # Image is now at index 6
         img_path = os.path.join(IMAGE_DIR, img_name)
 
         theme = THEME
@@ -249,16 +253,16 @@ class AppGUI:
     def add_product_window(self):
         win = tk.Toplevel(self.root)
         win.title("Add New Product")
-        win.geometry("300x450")
+        win.geometry("350x550")
         theme = THEME
         win.configure(bg=theme["bg"])
 
-        fields = ["Name", "Quantity", "Price"]
+        fields = ["Name", "Quantity", "Price", "Expiry Date (YYYY-MM-DD)", "Remarks"]
         entries = {}
         for f in fields:
             tk.Label(win, text=f, bg=theme["bg"], fg=theme["fg"]).pack()
             e = tk.Entry(win, bg=theme["entry_bg"], fg=theme["entry_fg"], insertbackground=theme["fg"])
-            e.pack()
+            e.pack(pady=2)
             entries[f] = e
 
         self.selected_img_path = "" 
@@ -276,23 +280,82 @@ class AppGUI:
                 name = entries["Name"].get()
                 qty = int(entries["Quantity"].get())
                 price = float(entries["Price"].get())
+                expiry = entries["Expiry Date (YYYY-MM-DD)"].get()
+                remarks = entries["Remarks"].get()
+
+                if not name:
+                    messagebox.showerror("Error", "Name is required")
+                    return
 
                 img_name = "default.png"
                 if self.selected_img_path:
                     img_name = os.path.basename(self.selected_img_path)
                     shutil.copy(self.selected_img_path, os.path.join(IMAGE_DIR, img_name))
 
-                new_id = str(len(self.inventory) + 1)
-                self.inventory.append({"ID": new_id, "Name": name, "Quantity": qty, "Price": price, "Image": img_name})
-                DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "Image"])
+                # Check for existing product with same name AND expiry
+                existing = next((p for p in self.inventory if p['Name'] == name and p.get('ExpiryDate', '') == expiry), None)
+                
+                if existing:
+                    existing['Quantity'] = int(existing['Quantity']) + qty
+                    existing['Price'] = price # Update price if it changed
+                    existing['Remarks'] = remarks
+                else:
+                    new_id = str(max([int(p['ID']) for p in self.inventory] + [0]) + 1)
+                    self.inventory.append({
+                        "ID": new_id, 
+                        "Name": name, 
+                        "Quantity": qty, 
+                        "Price": price, 
+                        "ExpiryDate": expiry,
+                        "Remarks": remarks,
+                        "Image": img_name
+                    })
+                
+                DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "ExpiryDate", "Remarks", "Image"])
 
-                messagebox.showinfo("Success", "Product added!")
+                messagebox.showinfo("Success", "Product added/updated!")
                 win.destroy()
                 self.refresh_inventory_table()
             except ValueError:
                 messagebox.showerror("Error", "Invalid Input. Ensure Qty and Price are numeric.")
 
         tk.Button(win, text="Save Product", bg="#2ecc71", fg="white", command=save).pack(pady=20)
+
+    def restock_product_window(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a product to restock.")
+            return
+        
+        item = self.tree.item(selected[0])
+        prod_id = str(item['values'][0])
+        product = next((p for p in self.inventory if str(p['ID']) == prod_id), None)
+        
+        if not product: return
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Restock: {product['Name']}")
+        win.geometry("300x200")
+        theme = THEME
+        win.configure(bg=theme["bg"])
+
+        tk.Label(win, text=f"Product: {product['Name']}", bg=theme["bg"], font=("Arial", 10, "bold")).pack(pady=10)
+        tk.Label(win, text="Add Quantity:", bg=theme["bg"]).pack()
+        qty_ent = tk.Entry(win)
+        qty_ent.pack(pady=5)
+
+        def save_restock():
+            try:
+                add_qty = int(qty_ent.get())
+                product['Quantity'] = int(product['Quantity']) + add_qty
+                DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "ExpiryDate", "Remarks", "Image"])
+                messagebox.showinfo("Success", f"Restocked {add_qty} units.")
+                win.destroy()
+                self.refresh_inventory_table()
+            except ValueError:
+                messagebox.showerror("Error", "Invalid quantity.")
+
+        tk.Button(win, text="Confirm Restock", bg="#3498db", fg="white", command=save_restock).pack(pady=10)
 
     def show_sales(self):
         self.current_view = "sales"
@@ -303,37 +366,115 @@ class AppGUI:
         container = tk.Frame(self.main_frame, bg=theme["main_bg"])
         container.pack(fill="both", expand=True)
 
-        tk.Label(container, text="Sales Records", font=("Arial", 16, "bold"), bg=theme["main_bg"], fg=theme["fg"]).pack(pady=10)
+        top_frame = tk.Frame(container, bg=theme["main_bg"])
+        top_frame.pack(fill="x", padx=20, pady=10)
 
-        sale_form = tk.Frame(container, bg=theme["card_bg"], pady=10)
-        sale_form.pack(fill="x", padx=20)
+        tk.Label(top_frame, text="Sales & Daily Tracking", font=("Arial", 16, "bold"), bg=theme["main_bg"], fg=theme["fg"]).pack(side="left")
+        
+        button_frame = tk.Frame(top_frame, bg=theme["main_bg"])
+        button_frame.pack(side="right")
+        
+        tk.Button(button_frame, text="+ Record Sale", command=self.record_sale_window, bg="#2ecc71", fg="white").pack(side="left", padx=5)
+        tk.Button(button_frame, text="- Remove Record", command=self.remove_sale, bg="#e74c3c", fg="white").pack(side="left", padx=5)
 
-        tk.Label(sale_form, text="Select Product:", bg=theme["card_bg"], fg=theme["fg"]).grid(row=0, column=0)
-        prod_names = [p['Name'] for p in self.inventory]
-        self.sale_prod_var = tk.StringVar()
-        prod_dropdown = ttk.Combobox(sale_form, textvariable=self.sale_prod_var, values=prod_names)
-        prod_dropdown.grid(row=0, column=1)
+        # Daily Tracking Section
+        tracking_frame = tk.LabelFrame(container, text="Daily Sales Summary", bg=theme["main_bg"], fg=theme["fg"], font=("Arial", 10, "bold"))
+        tracking_frame.pack(fill="x", padx=20, pady=10)
 
-        tk.Label(sale_form, text="Quantity:", bg=theme["card_bg"], fg=theme["fg"]).grid(row=0, column=2)
-        self.sale_qty_ent = tk.Entry(sale_form, bg=theme["entry_bg"], fg=theme["entry_fg"], insertbackground=theme["fg"])
-        self.sale_qty_ent.grid(row=0, column=3)
+        daily_summary = {}
+        for s in self.sales:
+            date = s['Date'].split(' ')[0]
+            daily_summary[date] = daily_summary.get(date, 0) + float(s['Total'])
 
-        tk.Button(sale_form, text="Process Sale", command=self.process_sale, bg="#2ecc71", fg="white").grid(row=0, column=4, padx=10)
-        tk.Button(sale_form, text="Remove Sale", command=self.remove_sale, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=10)
+        # Display last 5 days
+        sorted_dates = sorted(daily_summary.keys(), reverse=True)[:5]
+        if not sorted_dates:
+            tk.Label(tracking_frame, text="No sales recorded yet.", bg=theme["main_bg"], fg=theme["fg"]).pack()
+        else:
+            for date in sorted_dates:
+                summary_line = tk.Frame(tracking_frame, bg=theme["main_bg"])
+                summary_line.pack(fill="x", padx=10)
+                tk.Label(summary_line, text=date, bg=theme["main_bg"], fg=theme["fg"], width=15, anchor="w").pack(side="left")
+                tk.Label(summary_line, text=f"₱{daily_summary[date]:.2f}", bg=theme["main_bg"], fg="#2ecc71", font=("Arial", 10, "bold")).pack(side="right")
 
         columns = ("ID", "Product", "Qty", "Total", "Date")
-        # Treeview styling
         style = ttk.Style()
         style.theme_use("default")
-
 
         self.sales_tree = ttk.Treeview(container, columns=columns, show="headings")
         for col in columns:
             self.sales_tree.heading(col, text=col)
+            self.sales_tree.column(col, width=100)
         self.sales_tree.pack(fill="both", expand=True, padx=20, pady=10)
 
         for s in self.sales:
-            self.sales_tree.insert("", "end", values=(s["ID"], s['Product'], s['Qty'], s['Total'], s['Date']))
+            self.sales_tree.insert("", "end", values=(s.get("ID", ""), s.get('Product', ''), s.get('Qty', ''), s.get('Total', ''), s.get('Date', '')))
+
+    def record_sale_window(self):
+        win = tk.Toplevel(self.root)
+        win.title("Record New Sale")
+        win.geometry("300x250")
+        theme = THEME
+        win.configure(bg=theme["bg"])
+
+        tk.Label(win, text="Select Product:", bg=theme["bg"]).pack(pady=5)
+        # Unique product names
+        prod_names = sorted(list(set([p['Name'] for p in self.inventory])))
+        prod_var = tk.StringVar()
+        prod_dropdown = ttk.Combobox(win, textvariable=prod_var, values=prod_names)
+        prod_dropdown.pack(pady=5)
+
+        tk.Label(win, text="Quantity:", bg=theme["bg"]).pack(pady=5)
+        qty_ent = tk.Entry(win)
+        qty_ent.pack(pady=5)
+
+        def process():
+            p_name = prod_var.get()
+            try:
+                qty_to_sell = int(qty_ent.get())
+                if qty_to_sell <= 0: raise ValueError
+                
+                # Find all batches for this product, sorted by ExpiryDate (FIFO)
+                batches = [p for p in self.inventory if p['Name'] == p_name]
+                batches.sort(key=lambda x: x.get('ExpiryDate', '9999-99-99')) # N/A goes to end
+
+                total_available = sum(int(b['Quantity']) for b in batches)
+
+                if total_available >= qty_to_sell:
+                    remaining_to_sell = qty_to_sell
+                    total_price = 0
+                    
+                    for batch in batches:
+                        if remaining_to_sell <= 0: break
+                        
+                        batch_qty = int(batch['Quantity'])
+                        sell_from_batch = min(batch_qty, remaining_to_sell)
+                        
+                        batch['Quantity'] = batch_qty - sell_from_batch
+                        total_price += sell_from_batch * float(batch['Price'])
+                        remaining_to_sell -= sell_from_batch
+
+                    new_sale = {
+                        "ID": str(max([int(s['ID']) for s in self.sales] + [0]) + 1),
+                        "Product": p_name,
+                        "Qty": qty_to_sell,
+                        "Total": total_price,
+                        "Date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    }
+                    self.sales.append(new_sale)
+
+                    DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "ExpiryDate", "Remarks", "Image"])
+                    DataManager.save_csv(SALES_FILE, self.sales, ["ID", "Product", "Qty", "Total", "Date"])
+
+                    messagebox.showinfo("Success", f"Sale Recorded! Total: ₱{total_price:.2f}")
+                    win.destroy()
+                    self.show_sales()
+                else:
+                    messagebox.showerror("Error", f"Insufficient stock! Available: {total_available}")
+            except Exception as e:
+                messagebox.showerror("Error", "Invalid input or processing error.")
+
+        tk.Button(win, text="Confirm Sale", bg="#2ecc71", fg="white", command=process).pack(pady=20)
 
     def remove_sale(self):
         selected = self.sales_tree.selection()
@@ -348,100 +489,6 @@ class AppGUI:
             DataManager.save_csv(SALES_FILE, self.sales, ["ID", "Product", "Qty", "Total", "Date"])
             self.show_sales()
             messagebox.showinfo("Success", "Sale record removed successfully.")
-
-    def process_sale(self):
-        p_name = self.sale_prod_var.get()
-        try:
-            qty_to_sell = int(self.sale_qty_ent.get())
-            product = next((p for p in self.inventory if p['Name'] == p_name), None)
-
-            if product and int(product['Quantity']) >= qty_to_sell:
-                product['Quantity'] = int(product['Quantity']) - qty_to_sell
-                total_price = qty_to_sell * float(product['Price'])
-
-                new_sale = {
-                    "ID": len(self.sales) + 1,
-                    "Product": p_name,
-                    "Qty": qty_to_sell,
-                    "Total": total_price,
-                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M")
-                }
-                self.sales.append(new_sale)
-
-                DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "Image"])
-                DataManager.save_csv(SALES_FILE, self.sales, ["ID", "Product", "Qty", "Total", "Date"])
-
-                messagebox.showinfo("Success", f"Sold! Total: ₱{total_price:.2f}")
-                self.show_sales()
-            else:
-                messagebox.showerror("Error", "Insufficient stock or invalid product!")
-        except Exception as e:
-            messagebox.showerror("Error", f"Invalid input: {e}")
-
-    def show_expenses(self):
-        self.current_view = "expenses"
-        self.clear_frame()
-        theme = THEME
-        self.main_frame.configure(bg=theme["main_bg"])
-
-        container = tk.Frame(self.main_frame, bg=theme["main_bg"])
-        container.pack(fill="both", expand=True)
-
-        tk.Label(container, text="Expense Tracker", font=("Arial", 16, "bold"), bg=theme["main_bg"], fg=theme["fg"]).pack(pady=10)
-
-        exp_form = tk.Frame(container, bg=theme["card_bg"], pady=10)
-        exp_form.pack(fill="x", padx=20)
-
-        tk.Label(exp_form, text="Description:", bg=theme["card_bg"], fg=theme["fg"]).grid(row=0, column=0)
-        desc_ent = tk.Entry(exp_form, bg=theme["entry_bg"], fg=theme["entry_fg"], insertbackground=theme["fg"])
-        desc_ent.grid(row=0, column=1)
-        
-        tk.Label(exp_form, text="Amount:", bg=theme["card_bg"], fg=theme["fg"]).grid(row=0, column=2)
-        amt_ent = tk.Entry(exp_form, bg=theme["entry_bg"], fg=theme["entry_fg"], insertbackground=theme["fg"])
-        amt_ent.grid(row=0, column=3)
-
-        def add_exp():
-            try:
-                new_exp = {
-                    "ID": len(self.expenses) + 1,
-                    "Desc": desc_ent.get(),
-                    "Amount": float(amt_ent.get()),
-                    "Date": datetime.now().strftime("%Y-%m-%d")
-                }
-                self.expenses.append(new_exp)
-                DataManager.save_csv(EXP_FILE, self.expenses, ["ID", "Desc", "Amount", "Date"])
-                self.show_expenses()
-            except:
-                messagebox.showerror("Error", "Invalid amount")
-        tk.Button(exp_form, text="Add Expense", command=add_exp, bg="#3498db", fg="white").grid(row=0, column=4, padx=10)
-        tk.Button(exp_form, text="Remove Expense", command=self.remove_expense, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=10)
-
-        columns = ("ID", "Desc", "Amount", "Date")
-        # Treeview styling
-        style = ttk.Style()
-        style.theme_use("default")
-
-
-        self.expenses_tree = ttk.Treeview(container, columns=columns, show="headings")
-        for col in columns:
-            self.expenses_tree.heading(col, text=col)
-        self.expenses_tree.pack(fill="both", expand=True, padx=20, pady=10)
-        for e in self.expenses:
-            self.expenses_tree.insert("", "end", values=(e['ID'], e['Desc'], e['Amount'], e['Date']))
-
-    def remove_expense(self):
-        selected = self.expenses_tree.selection()
-        if not selected:
-            messagebox.showwarning("Warning", "Please select an expense record to remove.")
-            return
-        
-        if messagebox.askyesno("Confirm", "Are you sure you want to remove the selected expense record?"):
-            item = self.expenses_tree.item(selected[0])
-            exp_id = str(item['values'][0])
-            self.expenses = [e for e in self.expenses if str(e['ID']) != exp_id]
-            DataManager.save_csv(EXP_FILE, self.expenses, ["ID", "Desc", "Amount", "Date"])
-            self.show_expenses()
-            messagebox.showinfo("Success", "Expense record removed successfully.")
 
 if __name__ == "__main__":
     root = tk.Tk()
