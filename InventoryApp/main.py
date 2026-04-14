@@ -132,16 +132,6 @@ class AppGUI:
         for p in self.catalog:
             self.cat_tree.insert("", "end", values=(p['Name'],))
 
-        def remove_cat():
-            selected = self.cat_tree.selection()
-            if selected:
-                name = self.cat_tree.item(selected[0])['values'][0]
-                self.catalog = [p for p in self.catalog if p['Name'] != name]
-                DataManager.save_csv(CAT_FILE, self.catalog, ["Name"])
-                self.show_catalog()
-
-        tk.Button(self.main_frame, text="Remove Selected", command=remove_cat, bg="#e74c3c", fg="white").pack(pady=10)
-
     # --- INVENTORY ---
     def show_inventory(self):
         self.clear_frame()
@@ -154,19 +144,33 @@ class AppGUI:
         button_frame.pack(side="right")
         
         tk.Button(button_frame, text="Adjust Stock/Price", command=self.add_product_window, bg="#2ecc71", fg="white").pack(side="left", padx=5)
-        tk.Button(button_frame, text="Remove Entry", command=self.remove_product, bg="#e74c3c", fg="white").pack(side="left", padx=5)
 
-        columns = ("ID", "Name", "Qty", "Price", "Image")
-        self.tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
+        # Container for table and preview
+        content_frame = tk.Frame(self.main_frame, bg="white")
+        content_frame.pack(fill="both", expand=True, padx=20)
+
+        # Left side: Table
+        table_frame = tk.Frame(content_frame, bg="white")
+        table_frame.pack(side="left", fill="both", expand=True)
+
+        columns = ("ID", "Name", "Qty", "Price")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
         for col in columns:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=120)
 
-        self.tree.pack(fill="both", expand=True, padx=20, pady=10)
+        self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.preview_product_image)
 
-        self.img_preview_label = tk.Label(self.main_frame, text="Select a product to see image", bg="white")
-        self.img_preview_label.pack(pady=10)
+        # Right side: Image Preview
+        preview_frame = tk.Frame(content_frame, bg="white", width=350)
+        preview_frame.pack(side="right", fill="y", padx=(20, 0))
+        preview_frame.pack_propagate(False)
+
+        tk.Label(preview_frame, text="Product Image", font=("Arial", 10, "bold"), bg="white").pack(pady=10)
+        self.img_preview_label = tk.Label(preview_frame, text="Select a product", bg="white", bd=2, relief="groove")
+        self.img_preview_label.pack(pady=10, fill="both", expand=True)
+
         self.refresh_inventory_table()
 
     def refresh_inventory_table(self):
@@ -174,16 +178,6 @@ class AppGUI:
             self.tree.delete(item)
         for row in self.inventory:
             self.tree.insert("", "end", values=(row['ID'], row['Name'], row['Quantity'], row['Price'], row['Image']))
-
-    def remove_product(self):
-        selected = self.tree.selection()
-        if not selected: return
-        if messagebox.askyesno("Confirm", "Remove this product from active inventory?"):
-            item = self.tree.item(selected[0])
-            prod_id = str(item['values'][0])
-            self.inventory = [p for p in self.inventory if str(p['ID']) != prod_id]
-            DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "Image"])
-            self.refresh_inventory_table()
 
     def add_product_window(self):
         if not self.catalog:
@@ -276,7 +270,7 @@ class AppGUI:
         if PILLOW_INSTALLED and img_name and os.path.exists(img_path):
             try:
                 img = Image.open(img_path)
-                img.thumbnail((120, 120))
+                img.thumbnail((400, 400))
                 photo = ImageTk.PhotoImage(img)
                 self.img_preview_label.config(image=photo, text="")
                 self.img_preview_label.image = photo
@@ -301,7 +295,6 @@ class AppGUI:
         self.sale_qty_ent.grid(row=0, column=3, padx=5)
 
         tk.Button(sale_form, text="Process Sale", command=self.process_sale, bg="#2ecc71", fg="white").grid(row=0, column=4, padx=5)
-        tk.Button(sale_form, text="Clear All Sales", command=self.clear_sales_history, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=5)
 
         columns = ("ID", "Product", "Qty", "Total", "Date")
         self.sales_tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
@@ -326,12 +319,6 @@ class AppGUI:
             else: messagebox.showerror("Error", "Check stock")
         except: messagebox.showerror("Error", "Invalid entry")
 
-    def clear_sales_history(self):
-        if self.sales and messagebox.askyesno("Confirm", "Delete ALL sales?"):
-            self.sales = []
-            DataManager.save_csv(SALES_FILE, self.sales, ["ID", "Product", "Qty", "Total", "Date"])
-            self.show_sales()
-
     # --- EXPENSES ---
     def show_expenses(self):
         self.clear_frame()
@@ -355,19 +342,12 @@ class AppGUI:
             except: messagebox.showerror("Error", "Invalid amount")
         
         tk.Button(exp_form, text="Add Expense", command=add_exp, bg="#3498db", fg="white").grid(row=0, column=4, padx=5)
-        tk.Button(exp_form, text="Clear All Expenses", command=self.clear_expenses_history, bg="#e74c3c", fg="white").grid(row=0, column=5, padx=5)
 
         columns = ("ID", "Desc", "Amount", "Date")
         self.expenses_tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
         for col in columns: self.expenses_tree.heading(col, text=col)
         self.expenses_tree.pack(fill="both", expand=True, padx=20, pady=10)
         for e in self.expenses: self.expenses_tree.insert("", "end", values=(e['ID'], e['Desc'], e['Amount'], e['Date']))
-
-    def clear_expenses_history(self):
-        if self.expenses and messagebox.askyesno("Confirm", "Delete ALL expenses?"):
-            self.expenses = []
-            DataManager.save_csv(EXP_FILE, self.expenses, ["ID", "Desc", "Amount", "Date"])
-            self.show_expenses()
 
 if __name__ == "__main__":
     root = tk.Tk()
