@@ -11,8 +11,9 @@ import shutil
 from datetime import datetime
 
 # Constants & Paths
-DATA_DIR = "data" 
-IMAGE_DIR = "images"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data") 
+IMAGE_DIR = os.path.join(BASE_DIR, "images")
 INV_FILE = os.path.join(DATA_DIR, "inventory.csv")
 SALES_FILE = os.path.join(DATA_DIR, "sales.csv")
 CAT_FILE = os.path.join(DATA_DIR, "catalog.csv")
@@ -44,17 +45,23 @@ for folder in [DATA_DIR, IMAGE_DIR]:
 class DataManager:
     @staticmethod
     def load_csv(filepath, fieldnames):
-        if not os.path.exists(filepath):
+        if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
             return []
-        with open(filepath, mode='r', newline='', encoding='utf-8') as f:
-            return list(csv.DictReader(f))
+        try:
+            with open(filepath, mode='r', newline='', encoding='utf-8') as f:
+                return list(csv.DictReader(f))
+        except Exception:
+            return []
 
     @staticmethod
     def save_csv(filepath, data, fieldnames):
-        with open(filepath, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(data)
+        try:
+            with open(filepath, mode='w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(data)
+        except Exception as e:
+            print(f"Error saving {filepath}: {e}")
 
 class AppGUI:
     def __init__(self, root):
@@ -67,11 +74,48 @@ class AppGUI:
         self.sales = DataManager.load_csv(SALES_FILE, SALES_FIELDS)
         self.catalog = DataManager.load_csv(CAT_FILE, CAT_FIELDS)
         
+        self.normalize_data()
+        
         self.nav_btns = {}
         self.current_view = "Dashboard"
 
         self.setup_styles()
         self.setup_ui()
+
+    def normalize_data(self):
+        # Normalize Inventory
+        for item in self.inventory:
+            if 'Price' in item and ('SellingPrice' not in item or not item['SellingPrice']):
+                item['SellingPrice'] = item['Price']
+            
+            # Ensure all fields exist
+            for field in INV_FIELDS:
+                if field not in item:
+                    item[field] = "0" if field in ["Quantity", "UnitPrice", "SellingPrice"] else ""
+        
+        # Normalize Sales
+        for sale in self.sales:
+            for field in SALES_FIELDS:
+                if field not in sale:
+                    sale[field] = "0" if field in ["Qty", "UnitPrice", "SellingPrice", "Total", "Profit"] else ""
+
+    def add_placeholder(self, ent, text):
+        ent.delete(0, tk.END)
+        ent.insert(0, text)
+        ent.config(fg=Colors.TEXT_SECONDARY)
+        
+        def on_focus_in(e):
+            if ent.get() == text:
+                ent.delete(0, tk.END)
+                ent.config(fg=Colors.TEXT_PRIMARY)
+        
+        def on_focus_out(e):
+            if not ent.get():
+                ent.insert(0, text)
+                ent.config(fg=Colors.TEXT_SECONDARY)
+        
+        ent.bind("<FocusIn>", on_focus_in)
+        ent.bind("<FocusOut>", on_focus_out)
 
     def setup_styles(self):
         style = ttk.Style()
@@ -162,6 +206,8 @@ class AppGUI:
 
     # --- DASHBOARD ---
     def show_dashboard(self):
+        self.inventory = DataManager.load_csv(INV_FILE, INV_FIELDS)
+        self.sales = DataManager.load_csv(SALES_FILE, SALES_FIELDS)
         self.clear_frame()
         
         # Header
@@ -197,6 +243,7 @@ class AppGUI:
             ("Inventory Value", f"₱{total_stock_val:,.2f}", Colors.WARNING, "💰"),
             ("Today's Sales", f"₱{daily_sales:,.2f}", Colors.SUCCESS, "🛒"),
             ("Today's Profit", f"₱{daily_profit:,.2f}", Colors.DANGER, "💸"),
+            ("Lifetime Revenue", f"₱{total_sales_all:,.2f}", "#06b6d4", "🛍️"),
             ("Lifetime Profit", f"₱{total_profit_all:,.2f}", "#8b5cf6", "📈"),
         ]
 
@@ -226,6 +273,7 @@ class AppGUI:
 
     # --- MASTER CATALOG ---
     def show_catalog(self):
+        self.catalog = DataManager.load_csv(CAT_FILE, CAT_FIELDS)
         self.clear_frame()
         
         # Header
@@ -257,12 +305,13 @@ class AppGUI:
         def add_cat():
             name = cat_name_ent.get().strip()
             desc = cat_desc_ent.get().strip()
-            if name and not any(p['Name'].lower() == name.lower() for p in self.catalog):
+            # Allow duplicate names only if the description is different
+            if name and not any(p['Name'].lower() == name.lower() and p.get('Description', '').lower() == desc.lower() for p in self.catalog):
                 self.catalog.append({"Name": name, "Description": desc})
                 DataManager.save_csv(CAT_FILE, self.catalog, CAT_FIELDS)
                 self.show_catalog()
             else:
-                messagebox.showwarning("Error", "Product name empty or duplicate.")
+                messagebox.showwarning("Error", "Product with this name and description already exists or name is empty.")
 
         tk.Button(entry_card, text="+ Add Product", command=add_cat, bg=Colors.PRIMARY, fg="white", 
                   relief="flat", font=("Segoe UI", 10, "bold"), padx=25, pady=8, cursor="hand2").grid(row=2, column=2, sticky="e")
@@ -279,22 +328,8 @@ class AppGUI:
                                       highlightthickness=0, bd=0, bg=Colors.BG_CARD)
         self.cat_search_ent.pack(side="left", fill="x", expand=True, padx=15)
         
-        # Placeholder text
-        def add_placeholder(ent, text):
-            ent.insert(0, text)
-            ent.config(fg=Colors.TEXT_SECONDARY)
-            def on_focus_in(e):
-                if ent.get() == text:
-                    ent.delete(0, tk.END)
-                    ent.config(fg=Colors.TEXT_PRIMARY)
-            def on_focus_out(e):
-                if not ent.get():
-                    ent.insert(0, text)
-                    ent.config(fg=Colors.TEXT_SECONDARY)
-            ent.bind("<FocusIn>", on_focus_in)
-            ent.bind("<FocusOut>", on_focus_out)
-
-        add_placeholder(self.cat_search_ent, "Search by name or description...")
+        self.cat_placeholder = "Search by name or description..."
+        self.add_placeholder(self.cat_search_ent, self.cat_placeholder)
 
         self.cat_count_lbl = tk.Label(search_card, text="Found 0 items", font=("Segoe UI", 9, "bold"), 
                                       bg=Colors.BG_CARD, fg=Colors.PRIMARY)
@@ -317,7 +352,7 @@ class AppGUI:
 
     def filter_catalog(self):
         query = self.cat_search_var.get().lower()
-        if query == "search by name or description...": query = ""
+        if query == self.cat_placeholder.lower(): query = ""
         
         for item in self.cat_tree.get_children():
             self.cat_tree.delete(item)
@@ -326,7 +361,7 @@ class AppGUI:
         for p in self.catalog:
             name = p.get('Name','').lower()
             desc = p.get('Description','').lower()
-            if query in name or query in desc:
+            if not query or query in name or query in desc:
                 self.cat_tree.insert("", "end", values=(p.get('Name',''), p.get('Description','')))
                 count += 1
         
@@ -334,6 +369,8 @@ class AppGUI:
 
     # --- INVENTORY ---
     def show_inventory(self):
+        self.inventory = DataManager.load_csv(INV_FILE, INV_FIELDS)
+        self.catalog = DataManager.load_csv(CAT_FILE, CAT_FIELDS)
         self.clear_frame()
         
         # Header
@@ -366,21 +403,8 @@ class AppGUI:
                                       highlightthickness=0, bd=0, bg=Colors.BG_CARD)
         self.inv_search_ent.pack(side="left", fill="x", expand=True, padx=15)
         
-        def add_placeholder(ent, text):
-            ent.insert(0, text)
-            ent.config(fg=Colors.TEXT_SECONDARY)
-            def on_focus_in(e):
-                if ent.get() == text:
-                    ent.delete(0, tk.END)
-                    ent.config(fg=Colors.TEXT_PRIMARY)
-            def on_focus_out(e):
-                if not ent.get():
-                    ent.insert(0, text)
-                    ent.config(fg=Colors.TEXT_SECONDARY)
-            ent.bind("<FocusIn>", on_focus_in)
-            ent.bind("<FocusOut>", on_focus_out)
-
-        add_placeholder(self.inv_search_ent, "Search by name or ID...")
+        self.inv_placeholder = "Search by name or ID..."
+        self.add_placeholder(self.inv_search_ent, self.inv_placeholder)
         self.inv_search_var.trace_add("write", lambda *args: self.refresh_inventory_table())
 
         # Summary part
@@ -436,7 +460,7 @@ class AppGUI:
     def refresh_inventory_table(self):
         query = getattr(self, 'inv_search_var', None)
         query = query.get().lower() if query else ""
-        if query == "search by name or id...": query = ""
+        if query == self.inv_placeholder.lower(): query = ""
         
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -453,9 +477,6 @@ class AppGUI:
             qty = int(row.get('Quantity', 0))
             u_price = float(row.get('UnitPrice', 0))
             s_price = float(row.get('SellingPrice', 0))
-            
-            if 'Price' in row and u_price == 0 and s_price == 0:
-                s_price = float(row['Price'])
             
             total_u = qty * u_price
             total_s = qty * s_price
@@ -484,7 +505,6 @@ class AppGUI:
         # Configure tags for visual feedback
         self.tree.tag_configure("low_stock", foreground=Colors.DANGER)
         self.tree.tag_configure("med_stock", foreground=Colors.WARNING)
-        # self.tree.tag_configure("high_stock", foreground=Colors.SUCCESS) # Standard color is fine
         
         self.tree.tag_configure("odd", background="#ffffff")
         self.tree.tag_configure("even", background="#f8fafc")
@@ -510,6 +530,9 @@ class AppGUI:
 
     # --- SALES ---
     def show_sales(self):
+        self.sales = DataManager.load_csv(SALES_FILE, SALES_FIELDS)
+        self.inventory = DataManager.load_csv(INV_FILE, INV_FIELDS)
+        self.normalize_data()
         self.clear_frame()
         
         # Header
@@ -531,6 +554,7 @@ class AppGUI:
                  bg=Colors.BG_CARD, fg=Colors.TEXT_PRIMARY).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 15))
 
         tk.Label(form_card, text="Select Product", bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY, font=("Segoe UI", 9)).grid(row=1, column=0, sticky="w")
+        # Use only p['Name'] because the description is already included in the Name field of the inventory
         inv_names = [p['Name'] for p in self.inventory if int(p.get('Quantity', 0)) > 0]
         self.sale_prod_var = tk.StringVar()
         prod_dropdown = ttk.Combobox(form_card, textvariable=self.sale_prod_var, values=inv_names, state="readonly", font=("Segoe UI", 10), width=40)
@@ -551,6 +575,9 @@ class AppGUI:
         sales_search_ent = tk.Entry(search_frame, textvariable=self.sales_search_var, font=("Segoe UI", 10), 
                                    highlightthickness=1, highlightbackground=Colors.BORDER, bd=0)
         sales_search_ent.pack(side="left", fill="x", expand=True, padx=10, ipady=5)
+        
+        self.sales_placeholder = "Search by product name..."
+        self.add_placeholder(sales_search_ent, self.sales_placeholder)
         self.sales_search_var.trace_add("write", lambda *args: self.refresh_sales_table())
 
         # Table
@@ -580,6 +607,7 @@ class AppGUI:
     def refresh_sales_table(self):
         query = getattr(self, 'sales_search_var', None)
         query = query.get().lower() if query else ""
+        if query == self.sales_placeholder.lower(): query = ""
         
         for item in self.sales_tree.get_children():
             self.sales_tree.delete(item)
@@ -601,61 +629,76 @@ class AppGUI:
 
     def process_sale(self):
         p_name = self.sale_prod_var.get()
+        if not p_name:
+            messagebox.showwarning("Warning", "Please select a product.")
+            return
+
         try:
-            qty_to_sell = int(self.sale_qty_ent.get())
-            if qty_to_sell <= 0: raise ValueError
+            qty_text = self.sale_qty_ent.get()
+            if not qty_text:
+                messagebox.showwarning("Warning", "Please enter a quantity.")
+                return
+                
+            qty_to_sell = int(qty_text)
+            if qty_to_sell <= 0:
+                messagebox.showerror("Error", "Quantity must be greater than zero.")
+                return
             
+            # Find the product in current inventory
             product = next((p for p in self.inventory if p['Name'] == p_name), None)
-            if product and int(product.get('Quantity', 0)) >= qty_to_sell:
+            
+            if not product:
+                messagebox.showerror("Error", f"Product '{p_name}' not found in inventory.")
+                return
+
+            available_qty = int(product.get('Quantity', 0))
+            if available_qty >= qty_to_sell:
                 u_price = float(product.get('UnitPrice', 0))
-                s_price = float(product.get('SellingPrice', product.get('Price', 0)))
+                s_price = float(product.get('SellingPrice', 0))
                 
                 # Update inventory
-                product['Quantity'] = str(int(product['Quantity']) - qty_to_sell)
-                
-                today_date = datetime.now().strftime("%Y-%m-%d")
-                
-                # Check for existing sale of same product today
-                existing_sale = next((s for s in self.sales if s.get('Product') == p_name and s.get('Date', '').startswith(today_date)), None)
-                
-                if existing_sale:
-                    # Update existing record
-                    new_qty = int(existing_sale['Qty']) + qty_to_sell
-                    new_total = new_qty * s_price
-                    new_profit = new_qty * (s_price - u_price)
-                    
-                    existing_sale['Qty'] = str(new_qty)
-                    existing_sale['Total'] = f"{new_total:.2f}"
-                    existing_sale['Profit'] = f"{new_profit:.2f}"
-                    msg = f"Updated existing sale for today!\nNew Total Qty: {new_qty}\nNew Total: ₱{new_total:.2f}"
+                new_qty = available_qty - qty_to_sell
+                if new_qty <= 0:
+                    self.inventory.remove(product)
                 else:
-                    # Create new record
-                    total_sale = qty_to_sell * s_price
-                    total_cost = qty_to_sell * u_price
-                    profit = total_sale - total_cost
-                    
-                    new_id = len(self.sales) + 1
-                    new_sale = {
-                        "ID": str(new_id), 
-                        "Product": p_name, 
-                        "Qty": str(qty_to_sell), 
-                        "UnitPrice": f"{u_price:.2f}",
-                        "SellingPrice": f"{s_price:.2f}",
-                        "Total": f"{total_sale:.2f}", 
-                        "Profit": f"{profit:.2f}",
-                        "Date": datetime.now().strftime("%Y-%m-%d %H:%M")
-                    }
-                    self.sales.append(new_sale)
-                    msg = f"Sale processed!\nTotal: ₱{total_sale:.2f}\nProfit: ₱{profit:.2f}"
+                    product['Quantity'] = str(new_qty)
+                
+                # Create new record
+                total_sale = qty_to_sell * s_price
+                total_cost = qty_to_sell * u_price
+                profit = total_sale - total_cost
+                
+                # Generate new ID safely
+                max_id = 0
+                for s in self.sales:
+                    try:
+                        max_id = max(max_id, int(s.get('ID', 0)))
+                    except ValueError: continue
+                
+                new_id = max_id + 1
+                new_sale = {
+                    "ID": str(new_id), 
+                    "Product": p_name, 
+                    "Qty": str(qty_to_sell), 
+                    "UnitPrice": f"{u_price:.2f}",
+                    "SellingPrice": f"{s_price:.2f}",
+                    "Total": f"{total_sale:.2f}", 
+                    "Profit": f"{profit:.2f}",
+                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                }
+                self.sales.append(new_sale)
                 
                 DataManager.save_csv(INV_FILE, self.inventory, INV_FIELDS)
                 DataManager.save_csv(SALES_FILE, self.sales, SALES_FIELDS)
-                messagebox.showinfo("Success", msg)
+                
+                messagebox.showinfo("Success", f"Sale processed!\nTotal: ₱{total_sale:,.2f}\nProfit: ₱{profit:,.2f}")
                 self.show_sales()
             else:
-                messagebox.showerror("Error", "Insufficient stock!")
+                messagebox.showerror("Error", f"Insufficient stock!\nAvailable: {available_qty}\nRequested: {qty_to_sell}")
         except ValueError:
-            messagebox.showerror("Error", "Enter a valid quantity.")
+            messagebox.showerror("Error", "Please enter a valid whole number for quantity.")
+        except Exception as e:
+            messagebox.showerror("System Error", f"An unexpected error occurred: {str(e)}")
 
     # --- SUMMARY REPORT (DAILY) ---
     def show_summary(self):
@@ -701,24 +744,37 @@ class AppGUI:
                              highlightthickness=1, highlightbackground=Colors.BORDER)
         table_card.pack(fill="both", expand=True, pady=(0, 20))
         
-        tk.Label(table_card, text="Today's Transactions Log", font=("Segoe UI", 11, "bold"), 
+        tk.Label(table_card, text="Today's Product Summary", font=("Segoe UI", 11, "bold"), 
                  bg=Colors.BG_CARD, fg=Colors.TEXT_PRIMARY).pack(anchor="w", pady=(0, 15))
         
-        sum_tree = ttk.Treeview(table_card, columns=("Time", "Product", "Qty", "Total", "Profit"), show="headings", height=10)
-        sum_tree.heading("Time", text="TIME")
+        sum_tree = ttk.Treeview(table_card, columns=("Product", "Qty", "Total", "Profit"), show="headings", height=10)
         sum_tree.heading("Product", text="PRODUCT")
-        sum_tree.heading("Qty", text="QTY")
-        sum_tree.heading("Total", text="REVENUE")
-        sum_tree.heading("Profit", text="PROFIT")
+        sum_tree.heading("Qty", text="TOTAL QTY")
+        sum_tree.heading("Total", text="TOTAL REVENUE")
+        sum_tree.heading("Profit", text="TOTAL PROFIT")
         
-        for col in ("Time", "Product", "Qty", "Total", "Profit"):
+        for col in ("Product", "Qty", "Total", "Profit"):
             sum_tree.column(col, anchor="center")
         
         sum_tree.pack(fill="both", expand=True)
         
+        # Aggregate by product
+        summary_data = {}
         for s in daily_sales_list:
-            time_str = s.get('Date', '').split(' ')[1] if ' ' in s.get('Date', '') else ''
-            sum_tree.insert("", "end", values=(time_str, s.get('Product'), s.get('Qty'), f"₱{float(s.get('Total', 0)):.2f}", f"₱{float(s.get('Profit', 0)):.2f}"))
+            prod = s.get('Product')
+            qty = int(s.get('Qty', 0))
+            total = float(s.get('Total', 0))
+            profit = float(s.get('Profit', 0))
+            
+            if prod not in summary_data:
+                summary_data[prod] = {'Qty': 0, 'Total': 0.0, 'Profit': 0.0}
+            
+            summary_data[prod]['Qty'] += qty
+            summary_data[prod]['Total'] += total
+            summary_data[prod]['Profit'] += profit
+
+        for prod, data in summary_data.items():
+            sum_tree.insert("", "end", values=(prod, data['Qty'], f"₱{data['Total']:,.2f}", f"₱{data['Profit']:,.2f}"))
 
         def export_summary():
             messagebox.showinfo("Export", "Daily Report exported to 'daily_report.txt'")
@@ -728,9 +784,9 @@ class AppGUI:
                 f.write(f"Total Items Sold: {t_qty}\n")
                 f.write(f"Total Revenue: ₱{t_revenue:.2f}\n")
                 f.write(f"Total Profit: ₱{t_profit:.2f}\n")
-                f.write("\nTransactions:\n")
-                for s in daily_sales_list:
-                    f.write(f"{s.get('Date')} | {s.get('Product')} | Qty: {s.get('Qty')} | Total: ₱{s.get('Total')} | Profit: ₱{s.get('Profit')}\n")
+                f.write("\nProduct Summary:\n")
+                for prod, data in summary_data.items():
+                    f.write(f"{prod} | Total Qty: {data['Qty']} | Total Revenue: ₱{data['Total']:.2f} | Total Profit: ₱{data['Profit']:.2f}\n")
 
         tk.Button(content_frame, text="Download Daily Report (.txt)", command=export_summary, bg=Colors.PRIMARY, fg="white", 
                   relief="flat", font=("Segoe UI", 10, "bold"), padx=25, pady=10, cursor="hand2").pack(pady=(0, 30))
@@ -763,7 +819,8 @@ class AppGUI:
             return ent
 
         prod_var = tk.StringVar()
-        dropdown = create_field("Select Product", var=prod_var, is_combo=True, combo_vals=[p['Name'] for p in self.catalog])
+        dropdown = create_field("Select Product", var=prod_var, is_combo=True, 
+                                combo_vals=[f"{p['Name']} ({p.get('Description', 'No Desc')})" for p in self.catalog])
         qty_ent = create_field("Quantity Adjustment (+ / -)")
         qty_ent.insert(0, "0")
         u_price_ent = create_field("Unit Cost (Supplier Price)")
@@ -781,7 +838,8 @@ class AppGUI:
         lbl_img.pack(pady=(0, 20))
 
         def on_prod_select(event):
-            existing = next((p for p in self.inventory if p['Name'] == prod_var.get()), None)
+            selected_combined = prod_var.get()
+            existing = next((p for p in self.inventory if p['Name'] == selected_combined), None)
             if existing:
                 u_price_ent.delete(0, tk.END)
                 u_price_ent.insert(0, existing.get('UnitPrice', '0.00'))
@@ -792,7 +850,7 @@ class AppGUI:
 
         def save_adjustment():
             try:
-                name = prod_var.get()
+                name = prod_var.get() # This is now "Name (Description)"
                 qty_change = int(qty_ent.get())
                 u_price = float(u_price_ent.get())
                 s_price = float(s_price_ent.get())
@@ -802,7 +860,10 @@ class AppGUI:
                 
                 img_name = "default.png"
                 if self.selected_img_path:
-                    img_name = os.path.basename(self.selected_img_path)
+                    ext = os.path.splitext(self.selected_img_path)[1]
+                    # Use sanitized combined name for filename
+                    safe_name = name.replace(' ', '_').replace('(', '').replace(')', '')
+                    img_name = f"{safe_name}_{int(datetime.now().timestamp())}{ext}"
                     shutil.copy(self.selected_img_path, os.path.join(IMAGE_DIR, img_name))
                 elif existing:
                     img_name = existing.get('Image', 'default.png')
@@ -812,16 +873,24 @@ class AppGUI:
                     if new_qty < 0:
                         messagebox.showerror("Error", "Resulting stock cannot be negative.")
                         return
-                    existing['Quantity'] = str(new_qty)
-                    existing['UnitPrice'] = f"{u_price:.2f}"
-                    existing['SellingPrice'] = f"{s_price:.2f}"
-                    existing['Image'] = img_name
+                    if new_qty == 0:
+                        self.inventory.remove(existing)
+                    else:
+                        existing['Quantity'] = str(new_qty)
+                        existing['UnitPrice'] = f"{u_price:.2f}"
+                        existing['SellingPrice'] = f"{s_price:.2f}"
+                        existing['Image'] = img_name
                     if 'Price' in existing: del existing['Price']
                 else:
                     if qty_change < 0:
                         messagebox.showerror("Error", "Cannot start new stock with negative quantity.")
                         return
-                    new_id = str(len(self.inventory) + 1)
+                    if qty_change == 0:
+                        messagebox.showwarning("Warning", "Cannot add a new product with zero stock.")
+                        return
+                    
+                    max_id = max([int(p.get('ID', 0)) for p in self.inventory], default=0)
+                    new_id = str(max_id + 1)
                     self.inventory.append({
                         "ID": new_id, "Name": name, "Quantity": str(qty_change), 
                         "UnitPrice": f"{u_price:.2f}", "SellingPrice": f"{s_price:.2f}", 
