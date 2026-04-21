@@ -1,29 +1,29 @@
-# Integrated Inventory & Accounting System
+# ADDMR.CO Inventory
 
-A Python-based desktop application designed to streamline business operations by managing inventory, tracking sales, and monitoring expenses in one unified interface.
+A modernized Python-based desktop application for business operations, featuring advanced inventory tracking, sales analytics, and daily financial reporting.
 
-## 🚀 Features
+## 🚀 April 20 Key Updates
 
-### 1. Business Dashboard
-- **Real-time Statistics**: View total products, current stock value, total sales, and net profit at a glance.
-- **Visual Overview**: High-level summary cards for quick financial assessment.
+### 1. Enhanced Business Dashboard
+- **Real-time Stats**: View Stock Cost, Stock Value, Daily Sales, Daily Profit, and Total Net Profit.
+- **Improved UI**: Modern card-based layout with interactive feedback and better visual hierarchy.
 
-### 2. Inventory Management
-- **Add Products**: Easily add new items with name, quantity, price, and product images.
-- **Image Support**: Preview product images directly within the application.
-- **Remove Products**: Delete outdated or discontinued items from the inventory.
-- **Persistence**: All data is automatically saved to `inventory.csv`.
+### 2. Comprehensive Inventory Manager
+- **Dual Pricing**: Track both **Unit Cost** (Supplier Price) and **Selling Price** (Market Price).
+- **Valuation Columns**: Automatic calculation of Total Unit Cost and Total Selling Value for all stock.
+- **Image Integration**: Improved product image preview and management.
 
-### 3. Sales Tracking
-- **Process Sales**: Record transactions by selecting products from the inventory.
-- **Automatic Stock Updates**: Selling an item automatically deducts the quantity from the inventory.
-- **Sales History**: Keep a detailed log of all transactions, including date, quantity, and total price.
-- **Remove Sales**: Delete incorrect or cancelled sales records.
+### 3. Advanced Sales Tracking
+- **Profit Analytics**: Every sale now calculates net profit based on the margin between Unit Cost and Selling Price.
+- **Detailed Logs**: Records include unit prices at the time of sale for accurate historical reporting.
 
-### 4. Expense Tracker
-- **Log Expenses**: Track business costs with descriptions and amounts.
-- **Financial Monitoring**: Expenses are factored into the net profit calculation on the dashboard.
-- **Remove Expenses**: Delete or correct expense entries as needed.
+### 4. Daily Summary Report (Replaces Expenses)
+- **Daily Performance**: Instant view of today's total items sold, revenue, and net profit.
+- **Transaction History**: List of all today's transactions with timestamps.
+- **Export Feature**: Generate a `daily_report.txt` file for record-keeping.
+
+### 5. Master Product Catalog
+- **Product Descriptions**: Catalog now supports detailed descriptions for every product.
 
 ## 🛠️ Prerequisites
 
@@ -34,29 +34,21 @@ To run this application, you need:
     ```bash
     pip install Pillow
     ```
-3.  **Tkinter**: Usually comes pre-installed with Python on Windows. If you are on Linux, you might need:
-    ```bash
-    sudo apt-get install python3-tk
-    ```
+3.  **Tkinter**: Usually comes pre-installed with Python on Windows.
 
 ## 📂 Project Structure
 
-- `main.py`: The primary application script.
-- `data/`: Directory containing CSV files (`inventory.csv`, `sales.csv`, `expenses.csv`) for data storage.
-- `images/`: Directory where uploaded product images are stored.
+- `InventoryApp/main.py`: The primary application script.
+- `data/`: Directory containing CSV files (`inventory.csv`, `sales.csv`, `catalog.csv`).
+- `images/`: Directory for product images.
 
 ## 📖 How It Works
 
 1.  **Launch**: Run `python InventoryApp/main.py`.
-2.  **Navigation**: Use the sidebar to switch between the Dashboard, Inventory, Sales, and Expenses sections.
-3.  **Adding Data**:
-    - Go to **Inventory** to add your products first.
-    - Go to **Sales** to record a sale (ensure you have stock in the inventory).
-    - Go to **Expenses** to log any business costs.
-4.  **Data Management**:
-    - Use the **Remove** buttons in each section to manage your records.
-    - Confirm deletions via the pop-up dialogs to prevent accidental data loss.
-5.  **Automatic Saving**: The app uses CSV files in the `data/` folder as a lightweight database. Every time you add or remove an item, the files are updated instantly.
+2.  **Setup**: Start by adding products and their descriptions in the **Master Catalog**.
+3.  **Inventory**: Use the **Adjust Stock/Price** button to set your stock levels, unit costs, and selling prices.
+4.  **Sales**: Process transactions in the **Sales** tab. Stock and profit are updated automatically.
+5.  **Reporting**: Visit the **Summary Report** tab to see your daily business performance and export data.
 
 ---
 *Developed for CCS 1500 Project*

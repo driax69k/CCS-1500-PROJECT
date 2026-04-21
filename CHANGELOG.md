@@ -1,6 +1,6 @@
 # Project Updates & New Features
 
-This document tracks the recent enhancements and functionality added to the **Integrated Inventory & Accounting System**.
+This document tracks the recent enhancements and functionality added to **ADDMR.CO Inventory**.
 
 ## 🆕 Recent Additions
 

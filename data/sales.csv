@@ -1,1 +1,2 @@
-ID,Product,Qty,Total,Date
+ID,Product,Qty,UnitPrice,SellingPrice,Total,Profit,Date
+1,Mountain Dew 1.5L,15,15.00,78.00,1170.00,945.00,2026-04-21 17:54

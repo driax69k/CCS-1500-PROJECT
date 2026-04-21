@@ -15,8 +15,26 @@ DATA_DIR = "data"
 IMAGE_DIR = "images"
 INV_FILE = os.path.join(DATA_DIR, "inventory.csv")
 SALES_FILE = os.path.join(DATA_DIR, "sales.csv")
-EXP_FILE = os.path.join(DATA_DIR, "expenses.csv")
 CAT_FILE = os.path.join(DATA_DIR, "catalog.csv")
+
+class Colors:
+    BG_MAIN = "#f8fafc"
+    BG_SIDEBAR = "#1e293b"
+    BG_CARD = "#ffffff"
+    BORDER = "#e2e8f0"
+    PRIMARY = "#3b82f6"
+    SUCCESS = "#10b981"
+    WARNING = "#f59e0b"
+    DANGER = "#ef4444"
+    TEXT_PRIMARY = "#1e293b"
+    TEXT_SECONDARY = "#64748b"
+    NAV_HOVER = "#334155"
+    NAV_ACTIVE = "#3b82f6"
+
+# Fieldnames
+CAT_FIELDS = ["Name", "Description"]
+INV_FIELDS = ["ID", "Name", "Quantity", "UnitPrice", "SellingPrice", "Image"]
+SALES_FIELDS = ["ID", "Product", "Qty", "UnitPrice", "SellingPrice", "Total", "Profit", "Date"]
 
 # Ensure directories exist
 for folder in [DATA_DIR, IMAGE_DIR]:
@@ -25,15 +43,15 @@ for folder in [DATA_DIR, IMAGE_DIR]:
 
 class DataManager:
     @staticmethod
-    def load_csv(filepath):
+    def load_csv(filepath, fieldnames):
         if not os.path.exists(filepath):
             return []
-        with open(filepath, mode='r', newline='') as f:
+        with open(filepath, mode='r', newline='', encoding='utf-8') as f:
             return list(csv.DictReader(f))
 
     @staticmethod
     def save_csv(filepath, data, fieldnames):
-        with open(filepath, mode='w', newline='') as f:
+        with open(filepath, mode='w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(data)
@@ -41,37 +59,102 @@ class DataManager:
 class AppGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Integrated Inventory & Accounting System")
-        self.root.geometry("1100x650")
-        self.root.configure(bg="#f0f0f0")
+        self.root.title("ADDMR.CO Inventory")
+        self.root.geometry("1200x750")
+        self.root.configure(bg=Colors.BG_MAIN)
 
-        self.inventory = DataManager.load_csv(INV_FILE)
-        self.sales = DataManager.load_csv(SALES_FILE)
-        self.expenses = DataManager.load_csv(EXP_FILE)
-        self.catalog = DataManager.load_csv(CAT_FILE)
+        self.inventory = DataManager.load_csv(INV_FILE, INV_FIELDS)
+        self.sales = DataManager.load_csv(SALES_FILE, SALES_FIELDS)
+        self.catalog = DataManager.load_csv(CAT_FILE, CAT_FIELDS)
+        
+        self.nav_btns = {}
+        self.current_view = "Dashboard"
 
+        self.setup_styles()
         self.setup_ui()
 
+    def setup_styles(self):
+        style = ttk.Style()
+        style.theme_use("clam") # 'clam' allows more customization than 'vista/xpnative'
+        
+        # Treeview styling
+        style.configure("Treeview", 
+                        background=Colors.BG_CARD, 
+                        foreground=Colors.TEXT_PRIMARY, 
+                        fieldbackground=Colors.BG_CARD,
+                        rowheight=35,
+                        font=("Segoe UI", 10))
+        style.map("Treeview", background=[("selected", Colors.PRIMARY)])
+        
+        style.configure("Treeview.Heading", 
+                        background=Colors.BG_MAIN, 
+                        foreground=Colors.TEXT_SECONDARY, 
+                        font=("Segoe UI", 10, "bold"),
+                        relief="flat")
+        
+        # Custom Entry styling (simulated)
+        style.configure("TEntry", padding=5)
+
     def setup_ui(self):
-        self.sidebar = tk.Frame(self.root, bg="#2c3e50", width=200)
+        # Sidebar Styling
+        self.sidebar = tk.Frame(self.root, bg=Colors.BG_SIDEBAR, width=240)
         self.sidebar.pack(side="left", fill="y")
+        self.sidebar.pack_propagate(False)
 
-        tk.Label(self.sidebar, text="MAIN MENU", fg="white", bg="#2c3e50", font=("Arial", 12, "bold"), pady=20).pack()
+        # Logo/Brand
+        brand_frame = tk.Frame(self.sidebar, bg=Colors.BG_SIDEBAR, pady=40)
+        brand_frame.pack(fill="x")
+        tk.Label(brand_frame, text="ADDMR.CO", fg="white", bg=Colors.BG_SIDEBAR, 
+                 font=("Segoe UI", 18, "bold")).pack()
+        tk.Label(brand_frame, text="INVENTORY SYSTEM", fg=Colors.TEXT_SECONDARY, bg=Colors.BG_SIDEBAR, 
+                 font=("Segoe UI", 8, "bold")).pack()
 
-        nav_buttons = [
-            ("Dashboard", self.show_dashboard),
-            ("Master Catalog", self.show_catalog),
-            ("Inventory", self.show_inventory),
-            ("Sales", self.show_sales),
-            ("Expenses", self.show_expenses),
+        nav_items = [
+            ("Dashboard", "📊", self.show_dashboard),
+            ("Master Catalog", "📋", self.show_catalog),
+            ("Inventory", "📦", self.show_inventory),
+            ("Sales", "🛒", self.show_sales),
+            ("Summary Report", "📈", self.show_summary),
         ]
 
-        for text, command in nav_buttons:
-            tk.Button(self.sidebar, text=text, command=command, bg="#34495e", fg="white", relief="flat", padx=20, pady=10, width=15).pack(pady=5)
+        for text, icon, command in nav_items:
+            self.create_nav_btn(text, icon, command)
         
-        self.main_frame = tk.Frame(self.root, bg="white")
+        self.main_frame = tk.Frame(self.root, bg=Colors.BG_MAIN)
         self.main_frame.pack(side="right", fill="both", expand=True)
         self.show_dashboard()
+
+    def create_nav_btn(self, text, icon, command):
+        btn_frame = tk.Frame(self.sidebar, bg=Colors.BG_SIDEBAR, padx=10, pady=2)
+        btn_frame.pack(fill="x")
+        
+        def on_click():
+            self.current_view = text
+            self.update_nav_styles()
+            command()
+
+        btn = tk.Button(btn_frame, text=f"  {icon}  {text}", command=on_click, 
+                        bg=Colors.BG_SIDEBAR, fg="white", relief="flat", 
+                        anchor="w", font=("Segoe UI", 10),
+                        activebackground=Colors.NAV_HOVER, activeforeground="white", 
+                        cursor="hand2", bd=0)
+        btn.pack(fill="x", ipady=10)
+        
+        btn.bind("<Enter>", lambda e: self.on_nav_hover(btn, True))
+        btn.bind("<Leave>", lambda e: self.on_nav_hover(btn, False))
+        
+        self.nav_btns[text] = btn
+
+    def on_nav_hover(self, btn, is_hover):
+        if self.current_view not in self.nav_btns or self.nav_btns[self.current_view] != btn:
+            btn.configure(bg=Colors.NAV_HOVER if is_hover else Colors.BG_SIDEBAR)
+
+    def update_nav_styles(self):
+        for text, btn in self.nav_btns.items():
+            if text == self.current_view:
+                btn.configure(bg=Colors.NAV_ACTIVE, fg="white")
+            else:
+                btn.configure(bg=Colors.BG_SIDEBAR, fg="white")
 
     def clear_frame(self):
         for widget in self.main_frame.winfo_children():
@@ -80,104 +163,577 @@ class AppGUI:
     # --- DASHBOARD ---
     def show_dashboard(self):
         self.clear_frame()
-        tk.Label(self.main_frame, text="Business Dashboard", font=("Arial", 20, "bold"), bg="white").pack(pady=20)
-        stats_frame = tk.Frame(self.main_frame, bg="white")
-        stats_frame.pack(pady=10)
+        
+        # Header
+        header_frame = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40, pady=30)
+        header_frame.pack(fill="x")
+        tk.Label(header_frame, text="Business Dashboard", font=("Segoe UI", 24, "bold"), 
+                 bg=Colors.BG_MAIN, fg=Colors.TEXT_PRIMARY).pack(side="left")
+        
+        tk.Label(header_frame, text=datetime.now().strftime("%A, %B %d, %Y"), 
+                 font=("Segoe UI", 10), bg=Colors.BG_MAIN, fg=Colors.TEXT_SECONDARY).pack(side="right", pady=10)
 
-        total_stock_val = sum(float(i['Price']) * int(i['Quantity']) for i in self.inventory)
-        total_sales = sum(float(s['Total']) for s in self.sales)
-        total_exp = sum(float(e['Amount']) for e in self.expenses)
-        net_profit = total_sales - total_exp
+        # Content area with padding
+        content_scroll = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40)
+        content_scroll.pack(fill="both", expand=True)
+
+        stats_frame = tk.Frame(content_scroll, bg=Colors.BG_MAIN)
+        stats_frame.pack(fill="x")
+
+        # Calculations
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        total_stock_cost = sum(float(i.get('UnitPrice', 0)) * int(i.get('Quantity', 0)) for i in self.inventory)
+        total_stock_val = sum(float(i.get('SellingPrice', 0)) * int(i.get('Quantity', 0)) for i in self.inventory)
+        
+        total_sales_all = sum(float(s.get('Total', 0)) for s in self.sales)
+        total_profit_all = sum(float(s.get('Profit', 0)) for s in self.sales)
+        
+        daily_sales = sum(float(s.get('Total', 0)) for s in self.sales if s.get('Date', '').startswith(today))
+        daily_profit = sum(float(s.get('Profit', 0)) for s in self.sales if s.get('Date', '').startswith(today))
 
         cards = [
-            ("Total Products", len(self.inventory), "#3498db"),
-            ("Stock Value", f"₱{total_stock_val:.2f}", "#f1c40f"),
-            ("Total Sales", f"₱{total_sales:.2f}", "#2ecc71"),
-            ("Net Profit", f"₱{net_profit:.2f}", "#e67e22"),
+            ("Inventory Cost", f"₱{total_stock_cost:,.2f}", Colors.PRIMARY, "📦"),
+            ("Inventory Value", f"₱{total_stock_val:,.2f}", Colors.WARNING, "💰"),
+            ("Today's Sales", f"₱{daily_sales:,.2f}", Colors.SUCCESS, "🛒"),
+            ("Today's Profit", f"₱{daily_profit:,.2f}", Colors.DANGER, "💸"),
+            ("Lifetime Profit", f"₱{total_profit_all:,.2f}", "#8b5cf6", "📈"),
         ]
 
-        for i, (title, value, color) in enumerate(cards):
-            card = tk.Frame(stats_frame, bg=color, width=200, height=100, padx=20, pady=20)
-            card.grid(row=0, column=i, padx=10)
-            tk.Label(card, text=title, bg=color, fg="white", font=("Arial", 10)).pack()
-            tk.Label(card, text=value, bg=color, fg="white", font=("Arial", 14, "bold")).pack()
+        for i, (title, value, color, icon) in enumerate(cards):
+            card = tk.Frame(stats_frame, bg=Colors.BG_CARD, highlightthickness=1, highlightbackground=Colors.BORDER)
+            card.grid(row=i // 3, column=i % 3, padx=10, pady=10, sticky="nsew")
+            
+            # Icon and Title
+            top_row = tk.Frame(card, bg=Colors.BG_CARD, padx=20, pady=15)
+            top_row.pack(fill="x")
+            
+            tk.Label(top_row, text=icon, font=("Segoe UI", 20), bg=Colors.BG_CARD).pack(side="left")
+            tk.Label(top_row, text=title.upper(), font=("Segoe UI", 9, "bold"), 
+                     bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY).pack(side="left", padx=10)
+            
+            # Value
+            val_label = tk.Label(card, text=value, font=("Segoe UI", 18, "bold"), 
+                                 bg=Colors.BG_CARD, fg=Colors.TEXT_PRIMARY, padx=20)
+            val_label.pack(anchor="w", pady=(0, 20))
+            
+            # Bottom stripe
+            tk.Frame(card, bg=color, height=4).pack(side="bottom", fill="x")
+
+        # Configure grid weights
+        for j in range(3):
+            stats_frame.grid_columnconfigure(j, weight=1)
 
     # --- MASTER CATALOG ---
     def show_catalog(self):
         self.clear_frame()
-        tk.Label(self.main_frame, text="Master Product Catalog", font=("Arial", 16, "bold"), bg="white").pack(pady=10)
         
-        entry_frame = tk.Frame(self.main_frame, bg="white")
-        entry_frame.pack(pady=10)
+        # Header
+        header_frame = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40, pady=30)
+        header_frame.pack(fill="x")
+        tk.Label(header_frame, text="Product Catalog", font=("Segoe UI", 24, "bold"), 
+                 bg=Colors.BG_MAIN, fg=Colors.TEXT_PRIMARY).pack(side="left")
 
-        tk.Label(entry_frame, text="Product Name:", bg="white").grid(row=0, column=0)
-        cat_ent = tk.Entry(entry_frame)
-        cat_ent.grid(row=0, column=1, padx=5)
+        # Main Content
+        content_frame = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40)
+        content_frame.pack(fill="both", expand=True)
+
+        # Quick Add Form
+        entry_card = tk.Frame(content_frame, bg=Colors.BG_CARD, padx=20, pady=20, 
+                             highlightthickness=1, highlightbackground=Colors.BORDER)
+        entry_card.pack(fill="x", pady=(0, 20))
+
+        tk.Label(entry_card, text="Add New Product to Catalog", font=("Segoe UI", 10, "bold"), 
+                 bg=Colors.BG_CARD, fg=Colors.TEXT_PRIMARY).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 15))
+
+        tk.Label(entry_card, text="Product Name", bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY, font=("Segoe UI", 9)).grid(row=1, column=0, sticky="w")
+        cat_name_ent = tk.Entry(entry_card, font=("Segoe UI", 10), width=30, highlightthickness=1, highlightbackground=Colors.BORDER, bd=0)
+        cat_name_ent.grid(row=2, column=0, padx=(0, 20), pady=(5, 15), sticky="w")
+
+        tk.Label(entry_card, text="Description", bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY, font=("Segoe UI", 9)).grid(row=1, column=1, sticky="w")
+        cat_desc_ent = tk.Entry(entry_card, font=("Segoe UI", 10), width=50, highlightthickness=1, highlightbackground=Colors.BORDER, bd=0)
+        cat_desc_ent.grid(row=2, column=1, padx=(0, 20), pady=(5, 15), sticky="w")
 
         def add_cat():
-            name = cat_ent.get().strip()
+            name = cat_name_ent.get().strip()
+            desc = cat_desc_ent.get().strip()
             if name and not any(p['Name'].lower() == name.lower() for p in self.catalog):
-                self.catalog.append({"Name": name})
-                DataManager.save_csv(CAT_FILE, self.catalog, ["Name"])
+                self.catalog.append({"Name": name, "Description": desc})
+                DataManager.save_csv(CAT_FILE, self.catalog, CAT_FIELDS)
                 self.show_catalog()
             else:
                 messagebox.showwarning("Error", "Product name empty or duplicate.")
 
-        tk.Button(entry_frame, text="Add to Catalog", command=add_cat, bg="#3498db", fg="white").grid(row=0, column=2)
+        tk.Button(entry_card, text="+ Add Product", command=add_cat, bg=Colors.PRIMARY, fg="white", 
+                  relief="flat", font=("Segoe UI", 10, "bold"), padx=25, pady=8, cursor="hand2").grid(row=2, column=2, sticky="e")
 
-        self.cat_tree = ttk.Treeview(self.main_frame, columns=("Name"), show="headings")
-        self.cat_tree.heading("Name", text="Product Name")
-        self.cat_tree.pack(fill="both", expand=True, padx=50, pady=10)
+        # Search Card
+        search_card = tk.Frame(content_frame, bg=Colors.BG_CARD, padx=20, pady=15, 
+                              highlightthickness=1, highlightbackground=Colors.BORDER)
+        search_card.pack(fill="x", pady=(0, 20))
+        
+        tk.Label(search_card, text="🔍", font=("Segoe UI", 14), bg=Colors.BG_CARD).pack(side="left")
+        
+        self.cat_search_var = tk.StringVar()
+        self.cat_search_ent = tk.Entry(search_card, textvariable=self.cat_search_var, font=("Segoe UI", 11), 
+                                      highlightthickness=0, bd=0, bg=Colors.BG_CARD)
+        self.cat_search_ent.pack(side="left", fill="x", expand=True, padx=15)
+        
+        # Placeholder text
+        def add_placeholder(ent, text):
+            ent.insert(0, text)
+            ent.config(fg=Colors.TEXT_SECONDARY)
+            def on_focus_in(e):
+                if ent.get() == text:
+                    ent.delete(0, tk.END)
+                    ent.config(fg=Colors.TEXT_PRIMARY)
+            def on_focus_out(e):
+                if not ent.get():
+                    ent.insert(0, text)
+                    ent.config(fg=Colors.TEXT_SECONDARY)
+            ent.bind("<FocusIn>", on_focus_in)
+            ent.bind("<FocusOut>", on_focus_out)
 
+        add_placeholder(self.cat_search_ent, "Search by name or description...")
+
+        self.cat_count_lbl = tk.Label(search_card, text="Found 0 items", font=("Segoe UI", 9, "bold"), 
+                                      bg=Colors.BG_CARD, fg=Colors.PRIMARY)
+        self.cat_count_lbl.pack(side="right")
+        
+        self.cat_search_var.trace_add("write", lambda *args: self.filter_catalog())
+
+        # Table
+        table_container = tk.Frame(content_frame, bg=Colors.BG_CARD, highlightthickness=1, highlightbackground=Colors.BORDER)
+        table_container.pack(fill="both", expand=True, pady=(0, 20))
+        
+        self.cat_tree = ttk.Treeview(table_container, columns=("Name", "Description"), show="headings")
+        self.cat_tree.heading("Name", text="PRODUCT NAME")
+        self.cat_tree.heading("Description", text="DESCRIPTION")
+        self.cat_tree.column("Name", width=300)
+        self.cat_tree.column("Description", width=450)
+        self.cat_tree.pack(fill="both", expand=True)
+        
+        self.filter_catalog()
+
+    def filter_catalog(self):
+        query = self.cat_search_var.get().lower()
+        if query == "search by name or description...": query = ""
+        
+        for item in self.cat_tree.get_children():
+            self.cat_tree.delete(item)
+            
+        count = 0
         for p in self.catalog:
-            self.cat_tree.insert("", "end", values=(p['Name'],))
+            name = p.get('Name','').lower()
+            desc = p.get('Description','').lower()
+            if query in name or query in desc:
+                self.cat_tree.insert("", "end", values=(p.get('Name',''), p.get('Description','')))
+                count += 1
+        
+        self.cat_count_lbl.config(text=f"Found {count} items")
 
     # --- INVENTORY ---
     def show_inventory(self):
         self.clear_frame()
-        top_frame = tk.Frame(self.main_frame, bg="white")
-        top_frame.pack(fill="x", padx=20, pady=10)
+        
+        # Header
+        header_frame = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40, pady=30)
+        header_frame.pack(fill="x")
+        tk.Label(header_frame, text="Inventory Manager", font=("Segoe UI", 24, "bold"), 
+                 bg=Colors.BG_MAIN, fg=Colors.TEXT_PRIMARY).pack(side="left")
+        
+        tk.Button(header_frame, text="+ Adjust Stock/Price", command=self.add_product_window, 
+                  bg=Colors.SUCCESS, fg="white", relief="flat", font=("Segoe UI", 10, "bold"), 
+                  padx=20, pady=10, cursor="hand2").pack(side="right")
 
-        tk.Label(top_frame, text="Inventory Manager", font=("Arial", 16, "bold"), bg="white").pack(side="left")
+        # Main Content
+        content_frame = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40)
+        content_frame.pack(fill="both", expand=True)
+
+        # Search & Summary Card
+        search_card = tk.Frame(content_frame, bg=Colors.BG_CARD, padx=20, pady=15, 
+                              highlightthickness=1, highlightbackground=Colors.BORDER)
+        search_card.pack(fill="x", pady=(0, 20))
         
-        button_frame = tk.Frame(top_frame, bg="white")
-        button_frame.pack(side="right")
+        # Search part
+        search_left = tk.Frame(search_card, bg=Colors.BG_CARD)
+        search_left.pack(side="left", fill="x", expand=True)
         
-        tk.Button(button_frame, text="Adjust Stock/Price", command=self.add_product_window, bg="#2ecc71", fg="white").pack(side="left", padx=5)
+        tk.Label(search_left, text="🔍", font=("Segoe UI", 14), bg=Colors.BG_CARD).pack(side="left")
+        
+        self.inv_search_var = tk.StringVar()
+        self.inv_search_ent = tk.Entry(search_left, textvariable=self.inv_search_var, font=("Segoe UI", 11), 
+                                      highlightthickness=0, bd=0, bg=Colors.BG_CARD)
+        self.inv_search_ent.pack(side="left", fill="x", expand=True, padx=15)
+        
+        def add_placeholder(ent, text):
+            ent.insert(0, text)
+            ent.config(fg=Colors.TEXT_SECONDARY)
+            def on_focus_in(e):
+                if ent.get() == text:
+                    ent.delete(0, tk.END)
+                    ent.config(fg=Colors.TEXT_PRIMARY)
+            def on_focus_out(e):
+                if not ent.get():
+                    ent.insert(0, text)
+                    ent.config(fg=Colors.TEXT_SECONDARY)
+            ent.bind("<FocusIn>", on_focus_in)
+            ent.bind("<FocusOut>", on_focus_out)
+
+        add_placeholder(self.inv_search_ent, "Search by name or ID...")
+        self.inv_search_var.trace_add("write", lambda *args: self.refresh_inventory_table())
+
+        # Summary part
+        self.inv_summary_lbl = tk.Label(search_card, text="Total Units: 0 | Low Stock: 0", 
+                                        font=("Segoe UI", 9, "bold"), bg=Colors.BG_CARD, fg=Colors.PRIMARY)
+        self.inv_summary_lbl.pack(side="right", padx=(20, 0))
 
         # Container for table and preview
-        content_frame = tk.Frame(self.main_frame, bg="white")
-        content_frame.pack(fill="both", expand=True, padx=20)
+        paned_content = tk.Frame(content_frame, bg=Colors.BG_MAIN)
+        paned_content.pack(fill="both", expand=True, pady=(0, 20))
 
         # Left side: Table
-        table_frame = tk.Frame(content_frame, bg="white")
-        table_frame.pack(side="left", fill="both", expand=True)
+        table_card = tk.Frame(paned_content, bg=Colors.BG_CARD, highlightthickness=1, highlightbackground=Colors.BORDER)
+        table_card.pack(side="left", fill="both", expand=True)
 
-        columns = ("ID", "Name", "Qty", "Price")
-        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=120)
+        columns = ("ID", "Name", "Qty", "UnitPrice", "SellingPrice", "TotalUnit", "TotalSelling")
+        self.tree = ttk.Treeview(table_card, columns=columns, show="headings")
+        
+        column_configs = {
+            "ID": (50, "ID"),
+            "Name": (200, "PRODUCT NAME"),
+            "Qty": (80, "QTY"),
+            "UnitPrice": (110, "UNIT COST"),
+            "SellingPrice": (110, "SELLING PRICE"),
+            "TotalUnit": (130, "STOCK VALUE (COST)"),
+            "TotalSelling": (130, "STOCK VALUE (SALE)")
+        }
+
+        for col, (width, anchor) in column_configs.items():
+            self.tree.heading(col, text=anchor)
+            self.tree.column(col, width=width, anchor="center")
 
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.preview_product_image)
 
         # Right side: Image Preview
-        preview_frame = tk.Frame(content_frame, bg="white", width=350)
-        preview_frame.pack(side="right", fill="y", padx=(20, 0))
-        preview_frame.pack_propagate(False)
+        preview_card = tk.Frame(paned_content, bg=Colors.BG_CARD, width=320, 
+                               highlightthickness=1, highlightbackground=Colors.BORDER)
+        preview_card.pack(side="right", fill="y", padx=(20, 0))
+        preview_card.pack_propagate(False)
 
-        tk.Label(preview_frame, text="Product Image", font=("Arial", 10, "bold"), bg="white").pack(pady=10)
-        self.img_preview_label = tk.Label(preview_frame, text="Select a product", bg="white", bd=2, relief="groove")
-        self.img_preview_label.pack(pady=10, fill="both", expand=True)
+        header_preview = tk.Frame(preview_card, bg=Colors.BG_MAIN, pady=10)
+        header_preview.pack(fill="x")
+        tk.Label(header_preview, text="PRODUCT IMAGE", font=("Segoe UI", 9, "bold"), 
+                 bg=Colors.BG_MAIN, fg=Colors.TEXT_SECONDARY).pack()
+        
+        self.img_preview_label = tk.Label(preview_card, text="Select a product\nto view image", 
+                                          bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY, font=("Segoe UI", 10))
+        self.img_preview_label.pack(pady=40, fill="both", expand=True)
 
         self.refresh_inventory_table()
 
     def refresh_inventory_table(self):
+        query = getattr(self, 'inv_search_var', None)
+        query = query.get().lower() if query else ""
+        if query == "search by name or id...": query = ""
+        
         for item in self.tree.get_children():
             self.tree.delete(item)
+            
+        total_units = 0
+        low_stock_count = 0
+        
         for row in self.inventory:
-            self.tree.insert("", "end", values=(row['ID'], row['Name'], row['Quantity'], row['Price'], row['Image']))
+            name = row.get('Name', '')
+            p_id = row.get('ID', '')
+            if query and (query not in name.lower() and query not in p_id.lower()):
+                continue
+                
+            qty = int(row.get('Quantity', 0))
+            u_price = float(row.get('UnitPrice', 0))
+            s_price = float(row.get('SellingPrice', 0))
+            
+            if 'Price' in row and u_price == 0 and s_price == 0:
+                s_price = float(row['Price'])
+            
+            total_u = qty * u_price
+            total_s = qty * s_price
+            
+            total_units += qty
+            if qty < 10: low_stock_count += 1
+            
+            # Stock status tagging
+            if qty < 10:
+                tag = "low_stock"
+            elif qty < 25:
+                tag = "med_stock"
+            else:
+                tag = "high_stock"
+            
+            # Zebra striping overlay
+            zebra = "even" if len(self.tree.get_children()) % 2 == 0 else "odd"
+            
+            self.tree.insert("", "end", values=(
+                p_id, name, qty, 
+                f"₱{u_price:,.2f}", f"₱{s_price:,.2f}", 
+                f"₱{total_u:,.2f}", f"₱{total_s:,.2f}",
+                row.get('Image', 'default.png')
+            ), tags=(tag, zebra))
+        
+        # Configure tags for visual feedback
+        self.tree.tag_configure("low_stock", foreground=Colors.DANGER)
+        self.tree.tag_configure("med_stock", foreground=Colors.WARNING)
+        # self.tree.tag_configure("high_stock", foreground=Colors.SUCCESS) # Standard color is fine
+        
+        self.tree.tag_configure("odd", background="#ffffff")
+        self.tree.tag_configure("even", background="#f8fafc")
+        
+        if hasattr(self, 'inv_summary_lbl'):
+            self.inv_summary_lbl.config(text=f"Total Units: {total_units} | Low Stock: {low_stock_count}")
+
+    def preview_product_image(self, event):
+        selected = self.tree.selection()
+        if not selected: return
+        item = self.tree.item(selected[0])
+        img_name = item['values'][7] if len(item['values']) > 7 else "default.png"
+        img_path = os.path.join(IMAGE_DIR, img_name)
+        if PILLOW_INSTALLED and img_name and os.path.exists(img_path):
+            try:
+                img = Image.open(img_path)
+                img.thumbnail((250, 250))
+                photo = ImageTk.PhotoImage(img)
+                self.img_preview_label.config(image=photo, text="")
+                self.img_preview_label.image = photo
+            except: self.img_preview_label.config(image="", text="Image Error")
+        else: self.img_preview_label.config(image="", text="No Image Found")
+
+    # --- SALES ---
+    def show_sales(self):
+        self.clear_frame()
+        
+        # Header
+        header_frame = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40, pady=30)
+        header_frame.pack(fill="x")
+        tk.Label(header_frame, text="Sales Transactions", font=("Segoe UI", 24, "bold"), 
+                 bg=Colors.BG_MAIN, fg=Colors.TEXT_PRIMARY).pack(side="left")
+
+        # Main Content
+        content_frame = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40)
+        content_frame.pack(fill="both", expand=True)
+
+        # Sale Form Card
+        form_card = tk.Frame(content_frame, bg=Colors.BG_CARD, padx=25, pady=25, 
+                            highlightthickness=1, highlightbackground=Colors.BORDER)
+        form_card.pack(fill="x", pady=(0, 20))
+
+        tk.Label(form_card, text="New Sale Transaction", font=("Segoe UI", 10, "bold"), 
+                 bg=Colors.BG_CARD, fg=Colors.TEXT_PRIMARY).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 15))
+
+        tk.Label(form_card, text="Select Product", bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY, font=("Segoe UI", 9)).grid(row=1, column=0, sticky="w")
+        inv_names = [p['Name'] for p in self.inventory if int(p.get('Quantity', 0)) > 0]
+        self.sale_prod_var = tk.StringVar()
+        prod_dropdown = ttk.Combobox(form_card, textvariable=self.sale_prod_var, values=inv_names, state="readonly", font=("Segoe UI", 10), width=40)
+        prod_dropdown.grid(row=2, column=0, padx=(0, 20), pady=(5, 0), sticky="w")
+
+        tk.Label(form_card, text="Quantity", bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY, font=("Segoe UI", 9)).grid(row=1, column=1, sticky="w")
+        self.sale_qty_ent = tk.Entry(form_card, font=("Segoe UI", 10), width=15, highlightthickness=1, highlightbackground=Colors.BORDER, bd=0)
+        self.sale_qty_ent.grid(row=2, column=1, padx=(0, 20), pady=(5, 0), sticky="w", ipady=3)
+
+        tk.Button(form_card, text="Confirm Sale", command=self.process_sale, bg=Colors.SUCCESS, fg="white", 
+                  relief="flat", font=("Segoe UI", 10, "bold"), padx=30, pady=8, cursor="hand2").grid(row=2, column=2, sticky="e")
+
+        # Search Bar for Sales
+        search_frame = tk.Frame(content_frame, bg=Colors.BG_MAIN)
+        search_frame.pack(fill="x", pady=(0, 10))
+        tk.Label(search_frame, text="🔍", font=("Segoe UI", 12), bg=Colors.BG_MAIN).pack(side="left")
+        self.sales_search_var = tk.StringVar()
+        sales_search_ent = tk.Entry(search_frame, textvariable=self.sales_search_var, font=("Segoe UI", 10), 
+                                   highlightthickness=1, highlightbackground=Colors.BORDER, bd=0)
+        sales_search_ent.pack(side="left", fill="x", expand=True, padx=10, ipady=5)
+        self.sales_search_var.trace_add("write", lambda *args: self.refresh_sales_table())
+
+        # Table
+        table_container = tk.Frame(content_frame, bg=Colors.BG_CARD, highlightthickness=1, highlightbackground=Colors.BORDER)
+        table_container.pack(fill="both", expand=True, pady=(0, 20))
+        
+        columns = ("ID", "Product", "Qty", "UnitPrice", "SellingPrice", "Total", "Profit", "Date")
+        self.sales_tree = ttk.Treeview(table_container, columns=columns, show="headings")
+        
+        col_configs = {
+            "ID": (50, "ID"), 
+            "Product": (200, "PRODUCT"), 
+            "Qty": (70, "QTY"), 
+            "UnitPrice": (100, "COST"), 
+            "SellingPrice": (100, "PRICE"), 
+            "Total": (110, "TOTAL"), 
+            "Profit": (110, "PROFIT"), 
+            "Date": (150, "DATE")
+        }
+        for col, (width, title) in col_configs.items():
+            self.sales_tree.heading(col, text=title)
+            self.sales_tree.column(col, width=width, anchor="center")
+
+        self.sales_tree.pack(fill="both", expand=True)
+        self.refresh_sales_table()
+
+    def refresh_sales_table(self):
+        query = getattr(self, 'sales_search_var', None)
+        query = query.get().lower() if query else ""
+        
+        for item in self.sales_tree.get_children():
+            self.sales_tree.delete(item)
+            
+        for s in reversed(self.sales): # Show latest first
+            product = s.get('Product', '')
+            if query and query not in product.lower():
+                continue
+                
+            tag = "even" if len(self.sales_tree.get_children()) % 2 == 0 else "odd"
+            self.sales_tree.insert("", "end", values=(
+                s.get("ID"), product, s.get('Qty'), 
+                f"₱{float(s.get('UnitPrice', 0)):,.2f}", f"₱{float(s.get('SellingPrice', 0)):,.2f}", 
+                f"₱{float(s.get('Total', 0)):,.2f}", f"₱{float(s.get('Profit', 0)):,.2f}", s.get('Date')
+            ), tags=(tag,))
+            
+        self.sales_tree.tag_configure("odd", background="#ffffff")
+        self.sales_tree.tag_configure("even", background="#f8fafc")
+
+    def process_sale(self):
+        p_name = self.sale_prod_var.get()
+        try:
+            qty_to_sell = int(self.sale_qty_ent.get())
+            if qty_to_sell <= 0: raise ValueError
+            
+            product = next((p for p in self.inventory if p['Name'] == p_name), None)
+            if product and int(product.get('Quantity', 0)) >= qty_to_sell:
+                u_price = float(product.get('UnitPrice', 0))
+                s_price = float(product.get('SellingPrice', product.get('Price', 0)))
+                
+                # Update inventory
+                product['Quantity'] = str(int(product['Quantity']) - qty_to_sell)
+                
+                today_date = datetime.now().strftime("%Y-%m-%d")
+                
+                # Check for existing sale of same product today
+                existing_sale = next((s for s in self.sales if s.get('Product') == p_name and s.get('Date', '').startswith(today_date)), None)
+                
+                if existing_sale:
+                    # Update existing record
+                    new_qty = int(existing_sale['Qty']) + qty_to_sell
+                    new_total = new_qty * s_price
+                    new_profit = new_qty * (s_price - u_price)
+                    
+                    existing_sale['Qty'] = str(new_qty)
+                    existing_sale['Total'] = f"{new_total:.2f}"
+                    existing_sale['Profit'] = f"{new_profit:.2f}"
+                    msg = f"Updated existing sale for today!\nNew Total Qty: {new_qty}\nNew Total: ₱{new_total:.2f}"
+                else:
+                    # Create new record
+                    total_sale = qty_to_sell * s_price
+                    total_cost = qty_to_sell * u_price
+                    profit = total_sale - total_cost
+                    
+                    new_id = len(self.sales) + 1
+                    new_sale = {
+                        "ID": str(new_id), 
+                        "Product": p_name, 
+                        "Qty": str(qty_to_sell), 
+                        "UnitPrice": f"{u_price:.2f}",
+                        "SellingPrice": f"{s_price:.2f}",
+                        "Total": f"{total_sale:.2f}", 
+                        "Profit": f"{profit:.2f}",
+                        "Date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    }
+                    self.sales.append(new_sale)
+                    msg = f"Sale processed!\nTotal: ₱{total_sale:.2f}\nProfit: ₱{profit:.2f}"
+                
+                DataManager.save_csv(INV_FILE, self.inventory, INV_FIELDS)
+                DataManager.save_csv(SALES_FILE, self.sales, SALES_FIELDS)
+                messagebox.showinfo("Success", msg)
+                self.show_sales()
+            else:
+                messagebox.showerror("Error", "Insufficient stock!")
+        except ValueError:
+            messagebox.showerror("Error", "Enter a valid quantity.")
+
+    # --- SUMMARY REPORT (DAILY) ---
+    def show_summary(self):
+        self.clear_frame()
+        
+        # Header
+        header_frame = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40, pady=30)
+        header_frame.pack(fill="x")
+        tk.Label(header_frame, text="Daily Summary Report", font=("Segoe UI", 24, "bold"), 
+                 bg=Colors.BG_MAIN, fg=Colors.TEXT_PRIMARY).pack(side="left")
+
+        # Main Content
+        content_frame = tk.Frame(self.main_frame, bg=Colors.BG_MAIN, padx=40)
+        content_frame.pack(fill="both", expand=True)
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        daily_sales_list = [s for s in self.sales if s.get('Date', '').startswith(today)]
+        
+        t_qty = sum(int(s.get('Qty', 0)) for s in daily_sales_list)
+        t_revenue = sum(float(s.get('Total', 0)) for s in daily_sales_list)
+        t_profit = sum(float(s.get('Profit', 0)) for s in daily_sales_list)
+        
+        # Stats Cards for Summary
+        stats_box = tk.Frame(content_frame, bg=Colors.BG_MAIN)
+        stats_box.pack(fill="x", pady=(0, 20))
+        
+        summary_cards = [
+            ("Items Sold", str(t_qty), Colors.PRIMARY),
+            ("Total Revenue", f"₱{t_revenue:,.2f}", Colors.SUCCESS),
+            ("Net Profit", f"₱{t_profit:,.2f}", Colors.WARNING),
+        ]
+        
+        for i, (title, val, color) in enumerate(summary_cards):
+            card = tk.Frame(stats_box, bg=Colors.BG_CARD, padx=20, pady=15, 
+                            highlightthickness=1, highlightbackground=Colors.BORDER)
+            card.grid(row=0, column=i, padx=(0, 20 if i < 2 else 0), sticky="nsew")
+            tk.Label(card, text=title.upper(), font=("Segoe UI", 9, "bold"), bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY).pack(anchor="w")
+            tk.Label(card, text=val, font=("Segoe UI", 16, "bold"), bg=Colors.BG_CARD, fg=color).pack(anchor="w", pady=(5, 0))
+            stats_box.grid_columnconfigure(i, weight=1)
+
+        # Table Container
+        table_card = tk.Frame(content_frame, bg=Colors.BG_CARD, padx=20, pady=20, 
+                             highlightthickness=1, highlightbackground=Colors.BORDER)
+        table_card.pack(fill="both", expand=True, pady=(0, 20))
+        
+        tk.Label(table_card, text="Today's Transactions Log", font=("Segoe UI", 11, "bold"), 
+                 bg=Colors.BG_CARD, fg=Colors.TEXT_PRIMARY).pack(anchor="w", pady=(0, 15))
+        
+        sum_tree = ttk.Treeview(table_card, columns=("Time", "Product", "Qty", "Total", "Profit"), show="headings", height=10)
+        sum_tree.heading("Time", text="TIME")
+        sum_tree.heading("Product", text="PRODUCT")
+        sum_tree.heading("Qty", text="QTY")
+        sum_tree.heading("Total", text="REVENUE")
+        sum_tree.heading("Profit", text="PROFIT")
+        
+        for col in ("Time", "Product", "Qty", "Total", "Profit"):
+            sum_tree.column(col, anchor="center")
+        
+        sum_tree.pack(fill="both", expand=True)
+        
+        for s in daily_sales_list:
+            time_str = s.get('Date', '').split(' ')[1] if ' ' in s.get('Date', '') else ''
+            sum_tree.insert("", "end", values=(time_str, s.get('Product'), s.get('Qty'), f"₱{float(s.get('Total', 0)):.2f}", f"₱{float(s.get('Profit', 0)):.2f}"))
+
+        def export_summary():
+            messagebox.showinfo("Export", "Daily Report exported to 'daily_report.txt'")
+            with open("daily_report.txt", "w", encoding="utf-8") as f:
+                f.write(f"DAILY SUMMARY REPORT - {today}\n")
+                f.write("="*30 + "\n")
+                f.write(f"Total Items Sold: {t_qty}\n")
+                f.write(f"Total Revenue: ₱{t_revenue:.2f}\n")
+                f.write(f"Total Profit: ₱{t_profit:.2f}\n")
+                f.write("\nTransactions:\n")
+                for s in daily_sales_list:
+                    f.write(f"{s.get('Date')} | {s.get('Product')} | Qty: {s.get('Qty')} | Total: ₱{s.get('Total')} | Profit: ₱{s.get('Profit')}\n")
+
+        tk.Button(content_frame, text="Download Daily Report (.txt)", command=export_summary, bg=Colors.PRIMARY, fg="white", 
+                  relief="flat", font=("Segoe UI", 10, "bold"), padx=25, pady=10, cursor="hand2").pack(pady=(0, 30))
 
     def add_product_window(self):
         if not self.catalog:
@@ -186,44 +742,60 @@ class AppGUI:
 
         win = tk.Toplevel(self.root)
         win.title("Adjust Stock & Price")
-        win.geometry("350x450")
+        win.geometry("450x650")
+        win.configure(bg=Colors.BG_CARD)
+        win.transient(self.root)
+        win.grab_set()
 
-        tk.Label(win, text="Select Product:", font=("Arial", 10, "bold")).pack(pady=5)
+        main_win_frame = tk.Frame(win, bg=Colors.BG_CARD, padx=30, pady=30)
+        main_win_frame.pack(fill="both", expand=True)
+
+        tk.Label(main_win_frame, text="ADJUST STOCK & PRICE", font=("Segoe UI", 14, "bold"), 
+                 bg=Colors.BG_CARD, fg=Colors.TEXT_PRIMARY).pack(pady=(0, 25))
+
+        def create_field(label, var=None, is_combo=False, combo_vals=None):
+            tk.Label(main_win_frame, text=label, bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY, font=("Segoe UI", 9, "bold")).pack(anchor="w")
+            if is_combo:
+                ent = ttk.Combobox(main_win_frame, textvariable=var, values=combo_vals, state="readonly", font=("Segoe UI", 10))
+            else:
+                ent = tk.Entry(main_win_frame, font=("Segoe UI", 10), highlightthickness=1, highlightbackground=Colors.BORDER, bd=0)
+            ent.pack(fill="x", pady=(5, 20), ipady=5 if not is_combo else 0)
+            return ent
+
         prod_var = tk.StringVar()
-        dropdown = ttk.Combobox(win, textvariable=prod_var, values=[p['Name'] for p in self.catalog], state="readonly")
-        dropdown.pack(pady=5)
-
-        tk.Label(win, text="Qty Change (use '-' to subtract):").pack(pady=5)
-        qty_ent = tk.Entry(win)
+        dropdown = create_field("Select Product", var=prod_var, is_combo=True, combo_vals=[p['Name'] for p in self.catalog])
+        qty_ent = create_field("Quantity Adjustment (+ / -)")
         qty_ent.insert(0, "0")
-        qty_ent.pack()
-
-        tk.Label(win, text="New Unit Price:").pack(pady=5)
-        price_ent = tk.Entry(win)
-        price_ent.pack()
+        u_price_ent = create_field("Unit Cost (Supplier Price)")
+        s_price_ent = create_field("Selling Price (Market Price)")
 
         self.selected_img_path = ""
         def select_img():
             self.selected_img_path = filedialog.askopenfilename(filetypes=[("Images", "*.jpg *.png *.jpeg")])
             if self.selected_img_path:
-                lbl_img.config(text=f"Selected: {os.path.basename(self.selected_img_path)}")
+                lbl_img.config(text=f"Selected: {os.path.basename(self.selected_img_path)}", fg=Colors.SUCCESS)
 
-        tk.Button(win, text="Change Image", command=select_img).pack(pady=10)
-        lbl_img = tk.Label(win, text="No new image selected", font=("Arial", 8), fg="gray")
-        lbl_img.pack()
+        tk.Button(main_win_frame, text="📁 Choose Product Image", command=select_img, bg="#f1f5f9", fg=Colors.TEXT_PRIMARY, 
+                  relief="flat", font=("Segoe UI", 9), pady=8).pack(fill="x", pady=(0, 5))
+        lbl_img = tk.Label(main_win_frame, text="No new image selected", font=("Segoe UI", 8), bg=Colors.BG_CARD, fg=Colors.TEXT_SECONDARY)
+        lbl_img.pack(pady=(0, 20))
 
         def on_prod_select(event):
             existing = next((p for p in self.inventory if p['Name'] == prod_var.get()), None)
             if existing:
-                price_ent.delete(0, tk.END)
-                price_ent.insert(0, existing['Price'])
+                u_price_ent.delete(0, tk.END)
+                u_price_ent.insert(0, existing.get('UnitPrice', '0.00'))
+                s_price_ent.delete(0, tk.END)
+                s_price_ent.insert(0, existing.get('SellingPrice', existing.get('Price', '0.00')))
+        
         dropdown.bind("<<ComboboxSelected>>", on_prod_select)
 
         def save_adjustment():
             try:
                 name = prod_var.get()
                 qty_change = int(qty_ent.get())
-                new_price = float(price_ent.get())
+                u_price = float(u_price_ent.get())
+                s_price = float(s_price_ent.get())
                 if not name: return
 
                 existing = next((p for p in self.inventory if p['Name'] == name), None)
@@ -233,16 +805,18 @@ class AppGUI:
                     img_name = os.path.basename(self.selected_img_path)
                     shutil.copy(self.selected_img_path, os.path.join(IMAGE_DIR, img_name))
                 elif existing:
-                    img_name = existing['Image']
+                    img_name = existing.get('Image', 'default.png')
 
                 if existing:
-                    new_qty = int(existing['Quantity']) + qty_change
+                    new_qty = int(existing.get('Quantity', 0)) + qty_change
                     if new_qty < 0:
                         messagebox.showerror("Error", "Resulting stock cannot be negative.")
                         return
                     existing['Quantity'] = str(new_qty)
-                    existing['Price'] = f"{new_price:.2f}"
+                    existing['UnitPrice'] = f"{u_price:.2f}"
+                    existing['SellingPrice'] = f"{s_price:.2f}"
                     existing['Image'] = img_name
+                    if 'Price' in existing: del existing['Price']
                 else:
                     if qty_change < 0:
                         messagebox.showerror("Error", "Cannot start new stock with negative quantity.")
@@ -250,104 +824,18 @@ class AppGUI:
                     new_id = str(len(self.inventory) + 1)
                     self.inventory.append({
                         "ID": new_id, "Name": name, "Quantity": str(qty_change), 
-                        "Price": f"{new_price:.2f}", "Image": img_name
+                        "UnitPrice": f"{u_price:.2f}", "SellingPrice": f"{s_price:.2f}", 
+                        "Image": img_name
                     })
 
-                DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "Image"])
+                DataManager.save_csv(INV_FILE, self.inventory, INV_FIELDS)
                 self.refresh_inventory_table()
                 win.destroy()
             except ValueError:
                 messagebox.showerror("Error", "Enter valid numbers.")
 
-        tk.Button(win, text="Apply Changes", bg="#2ecc71", fg="white", font=("Arial", 10, "bold"), command=save_adjustment).pack(pady=20)
-
-    def preview_product_image(self, event):
-        selected = self.tree.selection()
-        if not selected: return
-        item = self.tree.item(selected[0])
-        img_name = item['values'][4]
-        img_path = os.path.join(IMAGE_DIR, img_name)
-        if PILLOW_INSTALLED and img_name and os.path.exists(img_path):
-            try:
-                img = Image.open(img_path)
-                img.thumbnail((400, 400))
-                photo = ImageTk.PhotoImage(img)
-                self.img_preview_label.config(image=photo, text="")
-                self.img_preview_label.image = photo
-            except: self.img_preview_label.config(image="", text="Image Error")
-        else: self.img_preview_label.config(image="", text="No Image")
-
-    # --- SALES ---
-    def show_sales(self):
-        self.clear_frame()
-        tk.Label(self.main_frame, text="Sales Records", font=("Arial", 16, "bold"), bg="white").pack(pady=10)
-        sale_form = tk.Frame(self.main_frame, bg="#ecf0f1", pady=10)
-        sale_form.pack(fill="x", padx=20)
-
-        tk.Label(sale_form, text="Product:").grid(row=0, column=0)
-        inv_names = [p['Name'] for p in self.inventory]
-        self.sale_prod_var = tk.StringVar()
-        prod_dropdown = ttk.Combobox(sale_form, textvariable=self.sale_prod_var, values=inv_names, state="readonly")
-        prod_dropdown.grid(row=0, column=1, padx=5)
-
-        tk.Label(sale_form, text="Qty:").grid(row=0, column=2)
-        self.sale_qty_ent = tk.Entry(sale_form)
-        self.sale_qty_ent.grid(row=0, column=3, padx=5)
-
-        tk.Button(sale_form, text="Process Sale", command=self.process_sale, bg="#2ecc71", fg="white").grid(row=0, column=4, padx=5)
-
-        columns = ("ID", "Product", "Qty", "Total", "Date")
-        self.sales_tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
-        for col in columns: self.sales_tree.heading(col, text=col)
-        self.sales_tree.pack(fill="both", expand=True, padx=20, pady=10)
-        for s in self.sales: self.sales_tree.insert("", "end", values=(s["ID"], s['Product'], s['Qty'], s['Total'], s['Date']))
-
-    def process_sale(self):
-        p_name = self.sale_prod_var.get()
-        try:
-            qty_to_sell = int(self.sale_qty_ent.get())
-            product = next((p for p in self.inventory if p['Name'] == p_name), None)
-            if product and int(product['Quantity']) >= qty_to_sell:
-                product['Quantity'] = str(int(product['Quantity']) - qty_to_sell)
-                total_price = qty_to_sell * float(product['Price'])
-                new_id = len(self.sales) + 1
-                new_sale = {"ID": new_id, "Product": p_name, "Qty": qty_to_sell, "Total": f"{total_price:.2f}", "Date": datetime.now().strftime("%Y-%m-%d %H:%M")}
-                self.sales.append(new_sale)
-                DataManager.save_csv(INV_FILE, self.inventory, ["ID", "Name", "Quantity", "Price", "Image"])
-                DataManager.save_csv(SALES_FILE, self.sales, ["ID", "Product", "Qty", "Total", "Date"])
-                self.show_sales()
-            else: messagebox.showerror("Error", "Check stock")
-        except: messagebox.showerror("Error", "Invalid entry")
-
-    # --- EXPENSES ---
-    def show_expenses(self):
-        self.clear_frame()
-        tk.Label(self.main_frame, text="Expense Tracker", font=("Arial", 16, "bold"), bg="white").pack(pady=10)
-        exp_form = tk.Frame(self.main_frame, bg="#ecf0f1", pady=10)
-        exp_form.pack(fill="x", padx=20)
-        tk.Label(exp_form, text="Desc:").grid(row=0, column=0)
-        desc_ent = tk.Entry(exp_form)
-        desc_ent.grid(row=0, column=1)
-        tk.Label(exp_form, text="Amount:").grid(row=0, column=2)
-        amt_ent = tk.Entry(exp_form)
-        amt_ent.grid(row=0, column=3, padx=5)
-
-        def add_exp():
-            try:
-                new_id = len(self.expenses) + 1
-                new_exp = {"ID": new_id, "Desc": desc_ent.get(), "Amount": f"{float(amt_ent.get()):.2f}", "Date": datetime.now().strftime("%Y-%m-%d")}
-                self.expenses.append(new_exp)
-                DataManager.save_csv(EXP_FILE, self.expenses, ["ID", "Desc", "Amount", "Date"])
-                self.show_expenses()
-            except: messagebox.showerror("Error", "Invalid amount")
-        
-        tk.Button(exp_form, text="Add Expense", command=add_exp, bg="#3498db", fg="white").grid(row=0, column=4, padx=5)
-
-        columns = ("ID", "Desc", "Amount", "Date")
-        self.expenses_tree = ttk.Treeview(self.main_frame, columns=columns, show="headings")
-        for col in columns: self.expenses_tree.heading(col, text=col)
-        self.expenses_tree.pack(fill="both", expand=True, padx=20, pady=10)
-        for e in self.expenses: self.expenses_tree.insert("", "end", values=(e['ID'], e['Desc'], e['Amount'], e['Date']))
+        tk.Button(main_win_frame, text="Save Changes", bg=Colors.PRIMARY, fg="white", 
+                  relief="flat", font=("Segoe UI", 10, "bold"), command=save_adjustment, pady=12).pack(fill="x", pady=(10, 0))
 
 if __name__ == "__main__":
     root = tk.Tk()
