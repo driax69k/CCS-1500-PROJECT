@@ -50,7 +50,8 @@ To quickly populate your product list, you can paste the following data directly
 Name,Description
 Mountain Dew,1L
 Mountain Dew,1.5L
-Coca Cola,1L
+Coca Cola,1.5L
+Sprite,1.5L
 ```
 
 **Steps:**
