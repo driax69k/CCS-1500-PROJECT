@@ -42,9 +42,26 @@ To run this application, you need:
 - `data/`: Directory containing CSV files (`inventory.csv`, `sales.csv`, `catalog.csv`).
 - `images/`: Directory for product images.
 
+## 📝 Quick Data Setup
+
+To quickly populate your product list, you can paste the following data directly into `InventoryApp/data/catalog.csv` using a text editor before running the app:
+
+```csv
+Name,Description
+Mountain Dew,1L
+Mountain Dew,1.5L
+Coca Cola,1L
+```
+
+**Steps:**
+1. Open `catalog.csv` in Notepad or VS Code.
+2. Ensure the first line is `Name,Description`.
+3. Paste the items above and press **Ctrl + S** to save the file.
+4. Launch the app and go to the **Master Catalog** tab to see your products.
+
 ## 📖 How It Works
 
-1.  **Launch**: Run `python InventoryApp/main.py`.
+1.  **Launch**: Run `python InventoryApp/main.py`. (Tip: Maximize the window for the most immersive experience!)
 2.  **Setup**: Start by adding products and their descriptions in the **Master Catalog**.
 3.  **Inventory**: Use the **Adjust Stock/Price** button to set your stock levels, unit costs, and selling prices.
 4.  **Sales**: Process transactions in the **Sales** tab. Stock and profit are updated automatically.
